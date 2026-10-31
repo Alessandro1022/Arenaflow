@@ -982,3 +982,12 @@ button.map-li:active { transform: scale(.985); }
 .privacy-card li { margin: 4px 0; }
 .privacy-mine { margin-top: 26px; padding-top: 6px; border-top: 1px solid var(--line); }
 
+/* ---- Säkerhetskopior ---- */
+.backup-list { margin-top: 12px; }
+.backup-row {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 9px 0; border-bottom: 1px solid var(--line);
+}
+.backup-row a.btn { text-decoration: none; }
+.backup-confirm { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--bg); font-size: 14px; }
+

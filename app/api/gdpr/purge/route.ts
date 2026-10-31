@@ -6,6 +6,7 @@ import { createClient as createSupabase } from '@supabase/supabase-js';
 import { supabaseUrl } from '@/lib/supabase/env';
 import { effectiveTier } from '@/lib/mfa';
 import { purgeTenant } from '@/lib/gdpr';
+import { afterPurge } from '@/lib/backup';
 import type { Role } from '@/lib/types';
 
 export const maxDuration = 120;
@@ -30,7 +31,11 @@ export async function POST(req: Request) {
     }
     const service = createSupabase(supabaseUrl(), process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false } });
     const result = await purgeTenant(service, supabase, me.tenant_id);
-    return NextResponse.json({ result });
+    // Äldre säkerhetskopior innehåller det som nyss raderades
+    const { data: t } = await supabase.from('tenants').select('name').eq('id', me.tenant_id).maybeSingle();
+    let backupsReplaced = false;
+    try { backupsReplaced = await afterPurge(service, me.tenant_id, (t?.name as string) ?? 'Turneringen', result); } catch { /* gallringen är gjord ändå */ }
+    return NextResponse.json({ result, backupsReplaced });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Gallringen misslyckades' }, { status: 500 });
   }

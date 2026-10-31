@@ -8,6 +8,7 @@ import { useLang } from '@/components/LanguageProvider';
 import { useTenant } from '@/components/TenantProvider';
 import { tenant as fallback } from '@/lib/tenant';
 import GdprSettings from '@/components/settings/GdprSettings';
+import BackupSettings from '@/components/settings/BackupSettings';
 
 export default function SettingsClient() {
   const { tr } = useLang();
@@ -88,6 +89,7 @@ export default function SettingsClient() {
       </div>
 
       <GdprSettings />
+      <BackupSettings />
     </>
   );
 }

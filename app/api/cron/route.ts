@@ -10,6 +10,7 @@ import { createClient as createSupabase } from '@supabase/supabase-js';
 import { generateReport, type TenantInfo } from '@/lib/ai';
 import { supabaseUrl } from '@/lib/supabase/env';
 import { purgeTenant } from '@/lib/gdpr';
+import { afterPurge, createBackup, pruneBackups } from '@/lib/backup';
 
 export const maxDuration = 300;
 
@@ -29,12 +30,24 @@ export async function GET(req: Request) {
 
   // Gallring enligt lagringstiderna, en gång per dygn. Gäller alla turneringar
   // med en sista dag – även de som inte pågår, det är just då det blir dags.
+  // Därefter en säkerhetskopia per turnering. Raderade gallringen något tas
+  // de äldre kopiorna bort, så att det raderade inte finns kvar i dem.
   const gallring: Record<string, unknown> = {};
-  if (slot === 'morning' || new URL(req.url).searchParams.get('gallra') === '1') {
-    const { data: all } = await db.from('tenants').select('id,name,ends_on').not('ends_on', 'is', null);
+  const backuper: Record<string, unknown> = {};
+  const q = new URL(req.url).searchParams;
+  if (slot === 'morning' || q.get('gallra') === '1') {
+    const { data: all } = await db.from('tenants').select('id,name,ends_on');
     for (const t of all ?? []) {
-      try { gallring[t.name] = await purgeTenant(db, db, t.id); }
-      catch (e) { gallring[t.name] = { fel: e instanceof Error ? e.message : 'fel' }; }
+      let purged: Record<string, unknown> = {};
+      if (t.ends_on) {
+        try { purged = await purgeTenant(db, db, t.id); gallring[t.name] = purged; }
+        catch (e) { gallring[t.name] = { fel: e instanceof Error ? e.message : 'fel' }; }
+      }
+      try {
+        if (!(await afterPurge(db, t.id, t.name, purged))) await createBackup(db, t.id, t.name);
+        await pruneBackups(db, t.id);
+        backuper[t.name] = 'ok';
+      } catch (e) { backuper[t.name] = e instanceof Error ? e.message : 'fel'; }
     }
   }
 
@@ -44,7 +57,7 @@ export async function GET(req: Request) {
     .from('tenants').select('id,name,sport,city,labels').eq('active', true);
 
   if (tErr) return NextResponse.json({ error: tErr.message }, { status: 500 });
-  if (!tenants?.length) return NextResponse.json({ slot, gallring, note: 'inga pågående turneringar' });
+  if (!tenants?.length) return NextResponse.json({ slot, gallring, backuper, note: 'inga pågående turneringar' });
 
   const out: Record<string, Record<string, string>> = {};
 
@@ -79,5 +92,5 @@ export async function GET(req: Request) {
     out[row.name] = results;
   }
 
-  return NextResponse.json({ slot, gallring, tenants: out });
+  return NextResponse.json({ slot, gallring, backuper, tenants: out });
 }
