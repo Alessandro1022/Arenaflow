@@ -85,6 +85,9 @@ export default function LoginPage() {
         {envError && <div className="form-error">Konfigurationsfel: {envError}</div>}
         {error && <div className="form-error">{error}</div>}
         {msg && <div className="ok-msg">{msg}</div>}
+        <div className="li-meta" style={{ marginTop: 16, textAlign: 'center' }}>
+          <a href="/integritet">Integritetsinformation</a>
+        </div>
       </div>
     </div>
   );

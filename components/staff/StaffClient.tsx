@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useLang } from '@/components/LanguageProvider';
 import { useTenant } from '@/components/TenantProvider';
 import { tierOf, type Role, ROLE_LABELS, ROLE_GROUPS } from '@/lib/types';
+import { downloadJson, fileSafe } from '@/lib/download';
 
 // 16 roller i en platt lista blir svart att overblicka, sa de grupperas
 // som organisationen faktiskt ser ut.
@@ -38,6 +39,7 @@ export default function StaffClient({ viewerRole }: { viewerRole: Role }) {
   const [pick, setPick] = useState(''); // 'area:ID' | 'school:ID' | 'arena:ID'
   const [err, setErr] = useState('');
   const [msg, setMsg] = useState('');
+  const [myId, setMyId] = useState('');
   const [loading, setLoading] = useState(true);
   const [invOpen, setInvOpen] = useState(false);
   const [invEmail, setInvEmail] = useState('');
@@ -72,6 +74,8 @@ export default function StaffClient({ viewerRole }: { viewerRole: Role }) {
       supabase.from('schools').select('id,name').order('name'),
       supabase.from('arenas').select('id,name').order('name')
     ]);
+    const { data: sess } = await supabase.auth.getSession();
+    setMyId(sess.session?.user.id ?? '');
     setPeople((p.data ?? []) as Profile[]);
     setScopes((sc.data ?? []) as Scope[]);
     setAreas((a.data ?? []) as Named[]);
@@ -112,6 +116,27 @@ export default function StaffClient({ viewerRole }: { viewerRole: Role }) {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) setErr(data.error ?? 'Fel');
     else setMsg(data.removed ? `Tvåfaktor nollställd för ${p.full_name || p.email}.` : `${p.full_name || p.email} hade ingen kodapp.`);
+  };
+
+  // Registerutdrag: allt systemet har om personen, som en fil
+  const exportPerson = async (p: Profile) => {
+    setErr(''); setMsg('');
+    const { data, error } = await supabase.rpc('person_export', { p: p.id });
+    if (error) { setErr(/function|schema cache/i.test(error.message) ? 'Kör del 25 i Supabase först.' : error.message); return; }
+    downloadJson(`registerutdrag-${fileSafe(p.full_name || p.email)}-${new Date().toISOString().slice(0, 10)}.json`, data);
+  };
+
+  // Radering: personen görs anonym och inloggningen spärras
+  const erasePerson = async (p: Profile) => {
+    if (!window.confirm(`Radera ${p.full_name || p.email}? Namn, e-post och telefon tas bort och inloggningen spärras. Det går inte att ångra.`)) return;
+    setErr(''); setMsg('');
+    const res = await fetch('/api/gdpr/erase-person', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: p.id })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) setErr(data.error ?? 'Fel');
+    else setMsg(`${p.full_name || p.email} är raderad.`);
+    load();
   };
 
   const removeScope = async (scopeId: string) => {
@@ -188,6 +213,12 @@ export default function StaffClient({ viewerRole }: { viewerRole: Role }) {
                 )}
                 {canEdit && tierOf(p.role) <= tierOf(viewerRole) && (
                   <button className="btn btn-sm" onClick={() => resetMfa(p)}>Nollställ tvåfaktor</button>
+                )}
+                {canEdit && (
+                  <button className="btn btn-sm" onClick={() => exportPerson(p)}>Registerutdrag</button>
+                )}
+                {canEdit && p.id !== myId && tierOf(p.role) <= tierOf(viewerRole) && p.full_name !== 'Raderad person' && (
+                  <button className="btn btn-sm btn-danger" onClick={() => erasePerson(p)}>Radera</button>
                 )}
               </div>
 

@@ -9,6 +9,7 @@ import { NextResponse } from 'next/server';
 import { createClient as createSupabase } from '@supabase/supabase-js';
 import { generateReport, type TenantInfo } from '@/lib/ai';
 import { supabaseUrl } from '@/lib/supabase/env';
+import { purgeTenant } from '@/lib/gdpr';
 
 export const maxDuration = 300;
 
@@ -26,13 +27,24 @@ export async function GET(req: Request) {
   const hour = new Date().getUTCHours();
   const slot = hour < 12 ? 'morning' : 'evening';
 
+  // Gallring enligt lagringstiderna, en gång per dygn. Gäller alla turneringar
+  // med en sista dag – även de som inte pågår, det är just då det blir dags.
+  const gallring: Record<string, unknown> = {};
+  if (slot === 'morning' || new URL(req.url).searchParams.get('gallra') === '1') {
+    const { data: all } = await db.from('tenants').select('id,name,ends_on').not('ends_on', 'is', null);
+    for (const t of all ?? []) {
+      try { gallring[t.name] = await purgeTenant(db, db, t.id); }
+      catch (e) { gallring[t.name] = { fel: e instanceof Error ? e.message : 'fel' }; }
+    }
+  }
+
   // Bara turneringar som pågår – ingen vits att skriva rapport för en
   // turnering som ligger i malpåse till nästa år.
   const { data: tenants, error: tErr } = await db
     .from('tenants').select('id,name,sport,city,labels').eq('active', true);
 
   if (tErr) return NextResponse.json({ error: tErr.message }, { status: 500 });
-  if (!tenants?.length) return NextResponse.json({ slot, note: 'inga pågående turneringar' });
+  if (!tenants?.length) return NextResponse.json({ slot, gallring, note: 'inga pågående turneringar' });
 
   const out: Record<string, Record<string, string>> = {};
 
@@ -67,5 +79,5 @@ export async function GET(req: Request) {
     out[row.name] = results;
   }
 
-  return NextResponse.json({ slot, tenants: out });
+  return NextResponse.json({ slot, gallring, tenants: out });
 }

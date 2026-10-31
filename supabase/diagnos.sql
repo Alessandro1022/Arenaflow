@@ -78,7 +78,10 @@ delar (ordning, del, vad, fil, ok) as (
                and prosrc like '%auth.uid() is null%')),
   (25, '24',  'Tvåfaktor',            'tops_del24.sql',
        exists (select 1 from information_schema.columns where table_schema = 'public'
-               and table_name = 'tenants' and column_name = 'require_mfa'))
+               and table_name = 'tenants' and column_name = 'require_mfa')),
+  (26, '25',  'GDPR',                 'tops_del25.sql',
+       to_regclass('public.retention_runs') is not null
+       and exists (select 1 from fn where proname = 'person_export'))
 ),
 -- Frågor mot tabeller som kanske saknas körs via query_to_xml, och bara
 -- när tabellen eller kolumnen finns. Annars hade hela filen kraschat.

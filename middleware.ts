@@ -29,7 +29,8 @@ export async function middleware(request: NextRequest) {
 
   const user = result.data.user;
   const path = request.nextUrl.pathname;
-  const isPublic = path.startsWith('/login') || path.startsWith('/auth') || path.startsWith('/api');
+  const isPublic = path.startsWith('/login') || path.startsWith('/auth') || path.startsWith('/api')
+    || path.startsWith('/integritet');
 
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();

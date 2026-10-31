@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useLang } from '@/components/LanguageProvider';
 import { useTenant } from '@/components/TenantProvider';
 import { tenant as fallback } from '@/lib/tenant';
+import GdprSettings from '@/components/settings/GdprSettings';
 
 export default function SettingsClient() {
   const { tr } = useLang();
@@ -85,6 +86,8 @@ export default function SettingsClient() {
         {error && <div className="form-error">{error}</div>}
         {saved && <div className="ok-msg">{tr('settingsSaved')}</div>}
       </div>
+
+      <GdprSettings />
     </>
   );
 }

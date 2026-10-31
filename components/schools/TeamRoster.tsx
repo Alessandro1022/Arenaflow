@@ -6,8 +6,9 @@
 // bara det driften behöver — namn, roll, födelseår för åldersklassen och
 // tröjnummer. Ingen hälsodata och inga anhöriguppgifter.
 import { useCallback, useEffect, useState } from 'react';
-import { QrCode, UserPlus, Trash2, Check, Undo2, AlertTriangle } from 'lucide-react';
+import { QrCode, UserPlus, Trash2, Check, Undo2, AlertTriangle, FileDown } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { downloadJson, fileSafe } from '@/lib/download';
 
 export type Participant = {
   id: string;
@@ -91,8 +92,20 @@ export default function TeamRoster({
     load();
   };
 
+  // Registerutdrag åt en förälder eller deltagare (admin)
+  const exportOne = async (p: Participant) => {
+    setErr('');
+    const { data, error } = await supabase.rpc('participant_export', { p: p.id });
+    if (error) {
+      setErr(/behörighet/i.test(error.message) ? 'Endast admin kan ta ut registerutdrag.' : /function|schema cache/i.test(error.message) ? 'Kör del 25 i Supabase först.' : error.message);
+      return;
+    }
+    downloadJson(`registerutdrag-${fileSafe(p.full_name)}-${new Date().toISOString().slice(0, 10)}.json`, data);
+  };
+
+  // Att ta bort deltagaren raderar också hens måltidsregistreringar
   const remove = async (p: Participant) => {
-    if (!confirm(`Ta bort ${p.full_name}?`)) return;
+    if (!confirm(`Ta bort ${p.full_name}? Uppgifterna raderas för gott.`)) return;
     await supabase.from('participants').delete().eq('id', p.id);
     load();
   };
@@ -183,6 +196,9 @@ export default function TeamRoster({
                   </button>
                   <button className="btn btn-sm" onClick={() => setCard(p)}>
                     <QrCode size={13} /> Kort
+                  </button>
+                  <button className="btn btn-sm" onClick={() => exportOne(p)} aria-label={`Registerutdrag för ${p.full_name}`}>
+                    <FileDown size={13} /> Utdrag
                   </button>
                   <button className="btn btn-sm btn-danger" onClick={() => remove(p)}>
                     <Trash2 size={13} />
