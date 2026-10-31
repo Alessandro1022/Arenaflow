@@ -926,3 +926,25 @@ button.map-li:active { transform: scale(.985); }
   border-radius: 10px; background: var(--ink); color: var(--bg);
   font-size: 14px; font-weight: 700; text-decoration: none;
 }
+
+/* ---- Import ---- */
+.imp-step { margin-bottom: 14px; }
+.imp-h { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 15px; margin-bottom: 10px; }
+.imp-n {
+  display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 99px;
+  background: var(--primary); color: #fff; font-size: 12px; font-weight: 800; flex-shrink: 0;
+}
+.imp-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.imp-file { cursor: pointer; }
+.imp-map { display: grid; gap: 2px; }
+.imp-map-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 10px; align-items: center;
+  padding: 8px 0; border-bottom: 1px solid var(--line);
+}
+.imp-map-row .li-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.imp-field { font-weight: 600; font-size: 14px; }
+.imp-err { display: flex; align-items: center; gap: 5px; color: var(--danger); font-size: 13px; margin-top: 3px; }
+.imp-bar { height: 8px; border-radius: 99px; background: var(--line); overflow: hidden; margin: 6px 0 14px; }
+.imp-bar > div { height: 100%; background: var(--primary); transition: width .2s; }
+.imp-row .li-title { overflow-wrap: anywhere; }
+

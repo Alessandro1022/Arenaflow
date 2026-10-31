@@ -6,7 +6,7 @@ import {
   Menu, LayoutDashboard, AlertTriangle, CheckSquare, LogOut,
   Map, School, Landmark, CalendarClock, Users, BarChart3,
   Newspaper, MessageSquare, FileText, Siren, Settings2, Sparkles, History,
-  Layers, Building2, Package, Truck, UtensilsCrossed, Wallet, ShieldAlert, UserCheck, WifiOff
+  Layers, Building2, Package, Truck, UtensilsCrossed, Wallet, ShieldAlert, UserCheck, WifiOff, Upload
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useLang } from '@/components/LanguageProvider';
@@ -108,7 +108,7 @@ export default function Shell({ role, name, children }: Props) {
   // Bara riktiga moduler styrs av paketet. Översikt, Inställningar och
   // Plattform är inga moduler och ska aldrig döljas av att de saknas i
   // turneringens modullista. Bemanning hör till modulen Pass.
-  const MODULE_FOR: Record<string, FeatureKey> = { staffing: 'shifts' };
+  const MODULE_FOR: Record<string, FeatureKey> = { staffing: 'shifts', import: 'structure' };
   const visible = (href: string) => {
     const key = href.slice(1);
     if (key === 'platform') return tn.isOwner;
@@ -163,6 +163,7 @@ export default function Shell({ role, name, children }: Props) {
         { href: '/crisis', label: tr('crisis'), Icon: Siren, minTier: 5 },
         { href: '/settings', label: tr('settings'), Icon: Settings2, minTier: 5 },
         { href: '/structure', label: 'Struktur', Icon: Building2, minTier: 5 },
+        { href: '/import', label: 'Import', Icon: Upload, minTier: 5 },
         { href: '/platform', label: 'Plattform', Icon: Layers, minTier: 6 }
       ]
     }

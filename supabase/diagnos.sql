@@ -72,7 +72,10 @@ delar (ordning, del, vad, fil, ok) as (
        to_regclass('public.channels') is not null),
   (23, '22',  'Komplettering',        'tops_del22.sql',
        to_regclass('public.channel_reads') is not null
-       and exists (select 1 from fn where proname = 'can_manage_channel'))
+       and exists (select 1 from fn where proname = 'can_manage_channel')),
+  (24, '23',  'Inbjudningar',         'tops_del23.sql',
+       exists (select 1 from pg_proc where proname = 'protect_role_change'
+               and prosrc like '%auth.uid() is null%'))
 ),
 -- Frågor mot tabeller som kanske saknas körs via query_to_xml, och bara
 -- när tabellen eller kolumnen finns. Annars hade hela filen kraschat.
