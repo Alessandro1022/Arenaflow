@@ -43,19 +43,29 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     '--accent': t.accent, '--danger': t.danger, '--ok': t.ok
   } as React.CSSProperties;
 
+  // Offline-workern kan stängas av för alla med OFFLINE_SW=off i Vercel
+  // (kräver Redeploy). /offline-sw.js läser samma variabel.
+  const swEnabled = process.env.OFFLINE_SW !== 'off';
+
   // Räddningslucka: körs före alla bundles, så den fungerar även när en gammal
-  // service worker har låst sidladdningen. Avregistrerar allt och tömmer
-  // cachen. Laddar om bara när något faktiskt togs bort, så den kan inte
-  // loopa – efter första körningen finns inget kvar att avregistrera.
+  // service worker har låst sidladdningen. Tar bort allt som inte är den
+  // nuvarande offline-workern (/offline-sw.js), eller allt om offline är
+  // avstängt. Laddar om bara när sidan styrdes av en gammal worker – efter
+  // omladdningen finns ingen sådan kvar, så den kan inte loopa.
   const swReset = `(function(){try{
 if(!('serviceWorker' in navigator))return;
+var off=${swEnabled ? 'false' : 'true'};
+try{if(/[?&]sw=off(&|$)/.test(location.search)||localStorage.getItem('tops-sw-off')==='1')off=true}catch(e){}
+var ours=function(u){try{return new URL(u).pathname==='/offline-sw.js'}catch(e){return false}};
+var c=navigator.serviceWorker.controller;
+var oldCtl=!!c&&!ours(c.scriptURL);
 navigator.serviceWorker.getRegistrations().then(function(rs){
-var had=rs.length>0;
-return Promise.all(rs.map(function(r){return r.unregister()})).then(function(){
+return Promise.all(rs.filter(function(r){var w=r.active||r.waiting||r.installing;return off||!w||!ours(w.scriptURL)})
+.map(function(r){return r.unregister()}));
+}).then(function(){
 return window.caches?caches.keys().then(function(ks){
-return Promise.all(ks.map(function(k){return caches.delete(k)}))}):null
-}).then(function(){if(had)location.reload()})
-}).catch(function(){})
+return Promise.all(ks.filter(function(k){return off||k.indexOf('tops-offline-')!==0}).map(function(k){return caches.delete(k)}))}):null
+}).then(function(){if(oldCtl)location.reload()}).catch(function(){})
 }catch(e){}})();`;
 
   return (
@@ -67,7 +77,7 @@ return Promise.all(ks.map(function(k){return caches.delete(k)}))}):null
         <TenantProvider>
           <LanguageProvider>{children}</LanguageProvider>
         </TenantProvider>
-        <SwRegister />
+        <SwRegister enabled={swEnabled} />
       </body>
     </html>
   );

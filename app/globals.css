@@ -919,3 +919,10 @@ button.map-li:active { transform: scale(.985); }
   line-height: 1; margin-left: auto;
 }
 .bottombar .nav-badge { position: absolute; top: 4px; left: calc(50% + 6px); margin: 0; }
+
+/* ---- Offline: raden högst upp när täckningen försvinner ---- */
+.offline-bar {
+  display: flex; align-items: center; gap: 8px; margin: 0 0 12px; padding: 10px 12px;
+  border-radius: 10px; background: var(--ink); color: var(--bg);
+  font-size: 14px; font-weight: 700; text-decoration: none;
+}

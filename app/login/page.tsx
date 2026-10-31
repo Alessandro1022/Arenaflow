@@ -1,10 +1,11 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { assertSupabaseEnv } from '@/lib/supabase/env';
 import { tenant } from '@/lib/tenant';
 import { useLang } from '@/components/LanguageProvider';
+import { clearSnapshot } from '@/lib/offline/snapshot';
 
 export default function LoginPage() {
   const { tr } = useLang();
@@ -15,6 +16,9 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
+  // Ett offlinepaket från förra inloggningen ska inte ligga kvar för nästa
+  // person. Det byggs upp igen direkt efter inloggning.
+  useEffect(() => { clearSnapshot(); }, []);
   // Fel i miljövariablerna ger annars bara "Load failed" utan förklaring
   const envError = assertSupabaseEnv();
 

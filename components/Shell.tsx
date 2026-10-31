@@ -6,12 +6,14 @@ import {
   Menu, LayoutDashboard, AlertTriangle, CheckSquare, LogOut,
   Map, School, Landmark, CalendarClock, Users, BarChart3,
   Newspaper, MessageSquare, FileText, Siren, Settings2, Sparkles, History,
-  Layers, Building2, Package, Truck, UtensilsCrossed, Wallet, ShieldAlert, UserCheck
+  Layers, Building2, Package, Truck, UtensilsCrossed, Wallet, ShieldAlert, UserCheck, WifiOff
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useLang } from '@/components/LanguageProvider';
 import { useTenant } from '@/components/TenantProvider';
 import OnCallSheet from '@/components/OnCallSheet';
+import OfflineSync from '@/components/OfflineSync';
+import { clearSnapshot } from '@/lib/offline/snapshot';
 import { FEATURE_KEYS, type FeatureKey } from '@/lib/features';
 import { tierOf, type Role, ROLE_LABELS } from '@/lib/types';
 import { LANGS, type Lang } from '@/lib/i18n';
@@ -245,7 +247,13 @@ export default function Shell({ role, name, children }: Props) {
           <select className="lang-select" value={lang} onChange={(e) => setLang(e.target.value as Lang)}>
             {LANGS.map((l) => <option key={l} value={l}>{l.toUpperCase()}</option>)}
           </select>
-          <form action="/auth/signout" method="post">
+          {/* Vanlig länk, inte Link: offlinesidan ligger utanför appen */}
+          <a className="nav-link" href="/offline.html">
+            <WifiOff size={17} /> Sparad info (offline)
+          </a>
+          {/* Offlinepaketet raderas vid utloggning, så nästa person på
+              samma telefon inte ser det */}
+          <form action="/auth/signout" method="post" onSubmit={() => clearSnapshot()}>
             <button className="nav-link" style={{ width: '100%', border: 'none', background: 'none' }}>
               <LogOut size={17} /> {tr('logout')}
             </button>
@@ -253,7 +261,10 @@ export default function Shell({ role, name, children }: Props) {
         </div>
       </aside>
 
-      <main className="main" style={crisis.active ? { paddingTop: 56 } : undefined}>{children}</main>
+      <main className="main" style={crisis.active ? { paddingTop: 56 } : undefined}>
+        <OfflineSync tier={tier} roleLabel={ROLE_LABELS[role]} />
+        {children}
+      </main>
 
       {jour && (
         <OnCallSheet onClose={() => setJour(false)} canEdit={tier >= 4} showSchedule={visible('/staffing')} />

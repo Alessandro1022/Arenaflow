@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Sparad info</title>
+<!--
+  TournamentOps · offlinesidan
+  Visas av service workern när nätet inte svarar. Helt fristående: inga
+  skript, typsnitt eller bilder utifrån, så den fungerar utan täckning och
+  kan inte gå sönder av en ny version av appen.
+  Läser offlinepaketet som appen sparar i telefonen (localStorage).
+-->
+<style>
+:root {
+  --bg: #F4F1EA; --panel: #FFFFFF; --panel-2: #1F2A24; --line: #E2DDD2;
+  --ink: #1B1F1C; --muted: #6B6F69; --primary: #2F6B4F; --primary-dark: #22513B;
+  --danger: #B3261E; --ok: #2F6B4F;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); }
+body {
+  font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  padding: env(safe-area-inset-top) 0 calc(24px + env(safe-area-inset-bottom));
+  -webkit-text-size-adjust: 100%;
+}
+header {
+  background: var(--panel-2); color: #fff; padding: 14px 16px;
+  display: flex; align-items: center; gap: 12px;
+}
+.badge {
+  width: 36px; height: 36px; border-radius: 9px; background: var(--primary); color: #fff;
+  display: grid; place-items: center; font-weight: 800; font-size: 13px; flex-shrink: 0;
+}
+header h1 { font-size: 16px; margin: 0; line-height: 1.2; }
+header p { margin: 2px 0 0; font-size: 12.5px; opacity: .75; }
+main { max-width: 640px; margin: 0 auto; padding: 12px 16px; }
+.status {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 11px 12px; border-radius: 10px; background: var(--ink); color: var(--bg);
+  font-weight: 700; font-size: 14px; margin-bottom: 12px;
+}
+.status.online { background: var(--ok); color: #fff; }
+.status a, .status button {
+  flex-shrink: 0; background: #fff; color: var(--ink); border: 0; border-radius: 8px;
+  padding: 7px 12px; font: inherit; font-size: 13.5px; text-decoration: none; cursor: pointer;
+}
+section { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; }
+section h2 { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; }
+.crisis { background: var(--danger); color: #fff; border-color: var(--danger); }
+.crisis h2 { color: #fff; opacity: .85; }
+.row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 0; border-top: 1px solid var(--line); }
+.row:first-of-type { border-top: 0; }
+.row .t { min-width: 0; overflow-wrap: anywhere; }
+.row .s { font-size: 13px; color: var(--muted); }
+.call {
+  flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px;
+  border-radius: 9px; background: var(--primary); color: #fff; text-decoration: none; font-weight: 700; font-size: 14px;
+}
+.call.big { background: var(--danger); font-size: 16px; padding: 10px 16px; }
+.place { border-top: 1px solid var(--line); padding: 10px 0; margin: 0; }
+.place:first-of-type { border-top: 0; padding-top: 2px; }
+.place > summary { cursor: pointer; list-style-position: outside; margin-left: 16px; }
+.place h3 { display: inline; font-size: 15.5px; margin: 0; overflow-wrap: anywhere; }
+.place[open] > summary { margin-bottom: 4px; }
+.kv { display: grid; grid-template-columns: 112px 1fr; gap: 3px 10px; font-size: 14px; margin-top: 6px; }
+.kv span { color: var(--muted); }
+.kv b { font-weight: 600; overflow-wrap: anywhere; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.btn {
+  display: inline-flex; align-items: center; padding: 7px 11px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--bg); color: var(--ink); text-decoration: none; font-size: 13.5px; font-weight: 600;
+}
+details { margin-top: 8px; }
+summary { cursor: pointer; font-weight: 600; font-size: 14px; padding: 4px 0; }
+.team { font-size: 13.5px; padding: 7px 0; border-top: 1px dashed var(--line); display: flex; justify-content: space-between; gap: 8px; }
+.team .t { min-width: 0; overflow-wrap: anywhere; }
+.now { display: inline-block; font-size: 11px; font-weight: 800; color: #fff; background: var(--primary); border-radius: 99px; padding: 1px 7px; margin-left: 6px; vertical-align: 1px; }
+.news h3 { font-size: 15px; margin: 8px 0 2px; }
+.news p { margin: 0 0 6px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; }
+.muted { color: var(--muted); font-size: 13.5px; }
+footer { max-width: 640px; margin: 0 auto; padding: 4px 16px 0; color: var(--muted); font-size: 12.5px; }
+footer button { margin-top: 10px; background: none; border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; font: inherit; color: var(--ink); cursor: pointer; }
+</style>
+</head>
+<body>
+<header>
+  <div class="badge" id="badge">TO</div>
+  <div>
+    <h1 id="title">Sparad info</h1>
+    <p id="sub"></p>
+  </div>
+</header>
+<main id="main">
+  <div class="status" id="status"><span id="statusText">Ingen täckning</span><span id="statusAction"></span></div>
+  <div id="top"></div>
+  <section id="sos">
+    <h2 id="hSos">Nödläge</h2>
+    <div class="row"><div class="t"><b>SOS Alarm</b><div class="s">Polis, ambulans, räddningstjänst</div></div>
+      <a class="call big" href="tel:112">112</a></div>
+  </section>
+  <div id="content"></div>
+</main>
+<footer id="foot"></footer>
+
+<script>
+(function () {
+  'use strict';
+  var KEY = 'tops-offline';
+  var MAX_AGE_MS = 7 * 86400e3;
+
+  var SV = {
+    title: 'Sparad info', offline: 'Ingen täckning', online: 'Täckningen är tillbaka',
+    retry: 'Försök igen', toApp: 'Till appen', crisis: 'Krisläge', sos: 'Nödläge',
+    sosSub: 'Polis, ambulans, räddningstjänst', emergency: 'Nödnummer', oncall: 'Jour',
+    noOncall: 'Ingen jour just nu', next: 'Nästa', until: 'till', from: 'från',
+    shifts: 'Mina pass', noShifts: 'Inga pass de närmaste dagarna.', now: 'NU',
+    places: 'Mina platser', contact: 'Kontakt', address: 'Adress', assembly: 'Återsamling',
+    care: 'Närmaste vård', note: 'Nödinfo', checkin: 'Incheckning', area: 'Område',
+    teams: 'Lag', room: 'Rum', people: 'pers.', route: 'Vägbeskrivning', call: 'Ring',
+    news: 'Viktigt', saved: 'Sparad', savedBy: 'för', none: 'Ingen sparad information på den här telefonen ännu. Öppna appen en gång med täckning, så sparas det viktigaste automatiskt.',
+    expired: 'Den sparade informationen var äldre än sju dagar och har raderats. Öppna appen med täckning för att spara ny.',
+    privacy: 'Informationen finns bara i den här telefonen. Den raderas när du loggar ut och efter sju dagar.',
+    reset: 'Återställ appen', resetHint: 'Använd om appen beter sig konstigt. Kräver täckning.',
+    status: { expected: 'Väntas', checked_in: 'Incheckat', checked_out: 'Utcheckat',
+      planned: 'Planerat', missed: 'Missat' },
+    fn: { ledning: 'Ledning', sakerhet: 'Säkerhet', boende: 'Boende', planer: 'Planer',
+      transport: 'Transport', maltider: 'Måltider', sjukvard: 'Sjukvård' },
+    ago: function (m) {
+      if (m < 2) return 'nyss';
+      if (m < 60) return 'för ' + m + ' min sedan';
+      var h = Math.round(m / 60);
+      if (h < 48) return 'för ' + h + ' tim sedan';
+      return 'för ' + Math.round(h / 24) + ' dagar sedan';
+    }
+  };
+  var EN = {
+    title: 'Saved info', offline: 'No connection', online: 'Connection is back',
+    retry: 'Try again', toApp: 'Open the app', crisis: 'Crisis', sos: 'Emergency',
+    sosSub: 'Police, ambulance, fire', emergency: 'Emergency numbers', oncall: 'On call',
+    noOncall: 'Nobody on call right now', next: 'Next', until: 'until', from: 'from',
+    shifts: 'My shifts', noShifts: 'No shifts in the coming days.', now: 'NOW',
+    places: 'My locations', contact: 'Contact', address: 'Address', assembly: 'Assembly point',
+    care: 'Nearest care', note: 'Emergency info', checkin: 'Check-in', area: 'Area',
+    teams: 'Teams', room: 'Room', people: 'ppl', route: 'Directions', call: 'Call',
+    news: 'Important', saved: 'Saved', savedBy: 'for', none: 'No saved information on this phone yet. Open the app once with a connection and the essentials are saved automatically.',
+    expired: 'The saved information was older than seven days and has been deleted. Open the app with a connection to save new.',
+    privacy: 'This information is only stored on this phone. It is deleted when you log out and after seven days.',
+    reset: 'Reset the app', resetHint: 'Use if the app behaves strangely. Needs a connection.',
+    status: { expected: 'Expected', checked_in: 'Checked in', checked_out: 'Checked out',
+      planned: 'Planned', missed: 'Missed' },
+    fn: { ledning: 'Management', sakerhet: 'Security', boende: 'Accommodation', planer: 'Venues',
+      transport: 'Transport', maltider: 'Meals', sjukvard: 'Medical' },
+    ago: function (m) {
+      if (m < 2) return 'just now';
+      if (m < 60) return m + ' min ago';
+      var h = Math.round(m / 60);
+      if (h < 48) return h + ' h ago';
+      return Math.round(h / 24) + ' days ago';
+    }
+  };
+
+  var L = SV;
+  var $ = function (id) { return document.getElementById(id); };
+
+  // Bygger element utan innerHTML: all text från paketet sätts som text,
+  // så inget i det kan tolkas som kod
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null && text !== '') e.textContent = text;
+    return e;
+  }
+  function add(parent) {
+    for (var i = 1; i < arguments.length; i++) if (arguments[i]) parent.appendChild(arguments[i]);
+    return parent;
+  }
+  function telHref(p) { return 'tel:' + String(p).replace(/[^\d+]/g, ''); }
+  function callBtn(phone) {
+    if (!phone) return null;
+    var a = el('a', 'call', phone);
+    a.href = telHref(phone);
+    return a;
+  }
+  function isIos() {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  }
+  function routeHref(p) {
+    var dest = p.lat != null && p.lng != null ? p.lat + ',' + p.lng : p.address;
+    if (!dest) return null;
+    return isIos()
+      ? 'https://maps.apple.com/?daddr=' + encodeURIComponent(dest) + '&dirflg=d'
+      : 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(dest);
+  }
+  function time(d) { return new Date(d).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' }); }
+  function day(d) {
+    var x = new Date(d), t = new Date();
+    var same = x.toDateString() === t.toDateString();
+    return same ? '' : x.toLocaleDateString(L === SV ? 'sv-SE' : 'en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) + ' ';
+  }
+  function section(title, cls) {
+    var s = el('section', cls || '');
+    add(s, el('h2', '', title));
+    return s;
+  }
+  function kv(grid, label, value) {
+    if (!value) return;
+    add(grid, el('span', '', label), el('b', '', value));
+  }
+
+  // ---- Täckning ----
+  function setStatus() {
+    var on = navigator.onLine;
+    var box = $('status');
+    box.className = 'status' + (on ? ' online' : '');
+    $('statusText').textContent = on ? L.online : L.offline;
+    var act = $('statusAction');
+    act.textContent = '';
+    if (location.pathname === '/offline.html') {
+      var a = el('a', '', L.toApp);
+      a.href = '/dashboard';
+      act.appendChild(a);
+    } else {
+      // Sidan visas i stället för den adress man försökte öppna,
+      // så "försök igen" laddar just den igen
+      var b = el('button', '', L.retry);
+      b.type = 'button';
+      b.onclick = function () { location.reload(); };
+      act.appendChild(b);
+    }
+  }
+  window.addEventListener('online', setStatus);
+  window.addEventListener('offline', setStatus);
+
+  // ---- Återställ ----
+  function resetApp() {
+    var done = function () { location.href = '/dashboard'; };
+    try {
+      var p1 = navigator.serviceWorker
+        ? navigator.serviceWorker.getRegistrations().then(function (rs) {
+            return Promise.all(rs.map(function (r) { return r.unregister(); }));
+          })
+        : Promise.resolve();
+      var p2 = window.caches
+        ? caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k); })); })
+        : Promise.resolve();
+      Promise.all([p1, p2]).then(done, done);
+    } catch (e) { done(); }
+  }
+
+  function render() {
+    var snap = null, raw = null;
+    try { raw = localStorage.getItem(KEY); } catch (e) { /* privat läge */ }
+    try { snap = raw ? JSON.parse(raw) : null; } catch (e) { snap = null; }
+
+    if (snap && snap.lang && snap.lang !== 'sv' && snap.lang !== 'no') L = EN;
+    document.documentElement.lang = L === SV ? 'sv' : 'en';
+    document.title = L.title;
+    $('hSos').textContent = L.sos;
+    $('sos').querySelector('.s').textContent = L.sosSub;
+
+    var content = $('content');
+    var top = $('top');
+    var foot = $('foot');
+    content.textContent = '';
+    top.textContent = '';
+    foot.textContent = '';
+
+    var expired = false;
+    if (snap && (!snap.savedAt || Date.now() - Date.parse(snap.savedAt) > MAX_AGE_MS)) {
+      try { localStorage.removeItem(KEY); } catch (e) { /* ignorera */ }
+      snap = null; expired = true;
+    }
+
+    if (!snap || snap.v !== 1) {
+      $('title').textContent = L.title;
+      add(content, add(section(L.title), el('p', 'muted', expired ? L.expired : L.none)));
+      renderFoot(foot, null);
+      setStatus();
+      return;
+    }
+
+    // Turneringens färger och namn
+    var colors = (snap.tenant && snap.tenant.colors) || {};
+    Object.keys(colors).forEach(function (k) {
+      if (/^#[0-9a-f]{3,8}$/i.test(colors[k])) document.documentElement.style.setProperty('--' + k, colors[k]);
+    });
+    $('title').textContent = (snap.tenant && snap.tenant.name) || L.title;
+    $('badge').textContent = (snap.tenant && snap.tenant.logoText) || 'TO';
+    var mins = Math.max(0, Math.round((Date.now() - Date.parse(snap.savedAt)) / 60000));
+    $('sub').textContent = L.saved + ' ' + day(snap.savedAt) + time(snap.savedAt) + ' (' + L.ago(mins) + ')';
+
+    var now = Date.now();
+
+    // Krisläge
+    if (snap.crisis && snap.crisis.active) {
+      add(top, add(section(L.crisis, 'crisis'), el('div', '', snap.crisis.message || L.crisis)));
+    }
+
+    // Nödnummer
+    var extra = (snap.emergency || []).filter(function (e) {
+      return String(e.phone).replace(/[^\d+]/g, '') !== '112';
+    });
+    if (extra.length) {
+      var se = section(L.emergency);
+      extra.forEach(function (e) {
+        var t = add(el('div', 't'), el('b', '', e.label), e.note ? el('div', 's', e.note) : null);
+        add(se, add(el('div', 'row'), t, callBtn(e.phone)));
+      });
+      add(content, se);
+    }
+
+    // Jour: den som har passet NU räknas fram när sidan visas, inte när den sparades
+    var byFn = {};
+    (snap.onCall || []).forEach(function (o) { (byFn[o.fn] = byFn[o.fn] || []).push(o); });
+    var fns = Object.keys(byFn);
+    var so = section(L.oncall);
+    if (!fns.length) add(so, el('p', 'muted', L.noOncall));
+    fns.forEach(function (fn) {
+      var list = byFn[fn];
+      var cur = list.filter(function (o) { return Date.parse(o.from) <= now && now < Date.parse(o.to); })
+        .sort(function (a, b) { return Date.parse(b.from) - Date.parse(a.from); })[0];
+      var nxt = list.filter(function (o) { return Date.parse(o.from) > now; })
+        .sort(function (a, b) { return Date.parse(a.from) - Date.parse(b.from); })[0];
+      var label = (L.fn[fn] || fn);
+      var t = el('div', 't');
+      if (cur) {
+        add(t, el('b', '', label + ': ' + (cur.name || '–')),
+          el('div', 's', L.until + ' ' + day(cur.to) + time(cur.to) + (cur.note ? ' · ' + cur.note : '')));
+        add(so, add(el('div', 'row'), t, callBtn(cur.phone)));
+      } else if (nxt) {
+        add(t, el('b', '', label + ': ' + L.noOncall.toLowerCase()),
+          el('div', 's', L.next + ': ' + (nxt.name || '–') + ' ' + L.from + ' ' + day(nxt.from) + time(nxt.from)));
+        add(so, add(el('div', 'row'), t, callBtn(nxt.phone)));
+      }
+    });
+    add(content, so);
+
+    // Viktiga meddelanden
+    if (snap.news && snap.news.length) {
+      var sn = section(L.news, 'news');
+      snap.news.forEach(function (n) {
+        add(sn, el('h3', '', n.title), n.body ? el('p', '', n.body) : null);
+      });
+      add(content, sn);
+    }
+
+    // Mina pass
+    var ss = section(L.shifts);
+    var shifts = (snap.shifts || []).filter(function (s) { return Date.parse(s.to) > now; });
+    if (!shifts.length) add(ss, el('p', 'muted', L.noShifts));
+    shifts.forEach(function (s) {
+      var isNow = Date.parse(s.from) <= now && now < Date.parse(s.to);
+      var b = el('b', '', day(s.from) + time(s.from) + '–' + time(s.to));
+      if (isNow) add(b, el('span', 'now', L.now));
+      var sub = [s.place, s.note, L.status[s.status] && s.status !== 'planned' ? L.status[s.status] : ''].filter(Boolean).join(' · ');
+      add(ss, add(el('div', 'row'), add(el('div', 't'), b, sub ? el('div', 's', sub) : null)));
+    });
+    add(content, ss);
+
+    // Mina platser
+    if (snap.places && snap.places.length) {
+      var sp = section(L.places);
+      // Platserna för pågående och kommande pass först, och utfällda.
+      // Resten i bokstavsordning, så att listan går att skumma.
+      var first = [];
+      shifts.forEach(function (s) { if (s.place && first.indexOf(s.place) < 0) first.push(s.place); });
+      var places = snap.places.slice().sort(function (a, b) {
+        var ia = first.indexOf(a.name), ib = first.indexOf(b.name);
+        if (ia >= 0 || ib >= 0) return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib);
+        return 0;
+      });
+      places.forEach(function (p) {
+        var box = el('details', 'place');
+        if (first.indexOf(p.name) >= 0 || places.length === 1) box.open = true;
+        add(box, add(el('summary'), el('h3', '', p.name),
+          el('div', 'muted', [p.kind, p.area].filter(Boolean).join(' · '))));
+        var grid = el('div', 'kv');
+        kv(grid, L.address, p.address);
+        kv(grid, L.contact, p.contactName);
+        kv(grid, L.assembly, p.assembly);
+        kv(grid, L.care, p.care);
+        kv(grid, L.checkin, p.checkIn);
+        if (grid.childNodes.length) add(box, grid);
+        if (p.note) add(box, el('p', '', p.note));
+        var acts = el('div', 'actions');
+        if (p.contactPhone) {
+          var c = el('a', 'call', L.call + ' ' + p.contactPhone);
+          c.href = telHref(p.contactPhone);
+          add(acts, c);
+        }
+        var r = routeHref(p);
+        if (r) {
+          var a = el('a', 'btn', L.route);
+          a.href = r; a.target = '_blank'; a.rel = 'noopener noreferrer';
+          add(acts, a);
+        }
+        if (acts.childNodes.length) add(box, acts);
+        if (p.teams && p.teams.length) {
+          var d = el('details');
+          var total = p.teams.reduce(function (n, t) { return n + (t.size || 0); }, 0);
+          add(d, el('summary', '', L.teams + ' (' + p.teams.length + (total ? ' · ' + total + ' ' + L.people : '') + ')'));
+          p.teams.forEach(function (t) {
+            var info = add(el('div', 't'),
+              el('b', '', t.name + (t.club && t.club !== t.name ? ' · ' + t.club : '')),
+              el('div', 's', [t.room ? L.room + ' ' + t.room : '', t.size ? t.size + ' ' + L.people : '',
+                L.status[t.status] || '', t.leader].filter(Boolean).join(' · ')));
+            add(d, add(el('div', 'team'), info, callBtn(t.phone)));
+          });
+          add(box, d);
+        }
+        add(sp, box);
+      });
+      add(content, sp);
+    }
+
+    renderFoot(foot, snap);
+    setStatus();
+  }
+
+  function renderFoot(foot, snap) {
+    if (snap && snap.user) add(foot, el('div', '', L.saved + ' ' + L.savedBy + ' ' + snap.user.name + (snap.user.role ? ' · ' + snap.user.role : '')));
+    add(foot, el('div', '', L.privacy));
+    var b = el('button', '', L.reset);
+    b.type = 'button';
+    b.onclick = resetApp;
+    add(foot, b, el('div', '', L.resetHint));
+  }
+
+  try { render(); } catch (e) {
+    // Även om paketet är trasigt ska 112 och vägen tillbaka synas
+    try { setStatus(); } catch (e2) { /* ignorera */ }
+  }
+  // Jouren och "NU" byts när tiden går
+  setInterval(function () { try { render(); } catch (e) { /* ignorera */ } }, 60000);
+})();
+</script>
+</body>
+</html>

@@ -44,6 +44,8 @@ export async function middleware(request: NextRequest) {
   return response;
 }
 
+// Service workern och offlinesidan måste nås utan inloggning: en omdirigering
+// till /login gör att uppdateringen av workern misslyckas.
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|manifest.json|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)']
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|manifest.json|sw\\.js|offline-sw\\.js|offline\\.html|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)']
 };
