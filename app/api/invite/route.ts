@@ -10,6 +10,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createClient as createSupabase } from '@supabase/supabase-js';
 import { tierOf, type Role } from '@/lib/types';
 import { supabaseUrl } from '@/lib/supabase/env';
+import { effectiveTier } from '@/lib/mfa';
 
 export async function POST(req: Request) {
   const supabase = await createClient();
@@ -19,7 +20,9 @@ export async function POST(req: Request) {
   const { data: profile } = await supabase
     .from('profiles').select('role, tenant_id, platform_owner').eq('id', user.id).single();
 
-  if (tierOf((profile?.role ?? 'volunteer') as Role) < 5) {
+  // Samma nivå som databasen räknar med: utan tvåfaktorkod är en admin volontär
+  const inviterTier = await effectiveTier(supabase, profile?.role as Role);
+  if (inviterTier < 5) {
     return NextResponse.json({ error: 'Endast admin kan bjuda in' }, { status: 403 });
   }
 
@@ -28,7 +31,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Ogiltig e-post' }, { status: 400 });
   }
   // Ingen kan bjuda in någon med högre roll än sin egen
-  const inviterTier = tierOf((profile?.role ?? 'volunteer') as Role);
   if (role && tierOf(role as Role) > inviterTier && !profile?.platform_owner) {
     return NextResponse.json({ error: 'Du kan inte bjuda in någon med högre roll än din egen' }, { status: 403 });
   }

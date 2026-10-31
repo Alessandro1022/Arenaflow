@@ -7,11 +7,12 @@ import { tierOf, type Role, ROLE_LABELS, ROLE_GROUPS } from '@/lib/types';
 
 // 16 roller i en platt lista blir svart att overblicka, sa de grupperas
 // som organisationen faktiskt ser ut.
-const RoleOptions = () => (
+// Roller över ens egen nivå går inte att dela ut (spärras även i databasen)
+const RoleOptions = ({ max = 6 }: { max?: number }) => (
   <>
     {ROLE_GROUPS.map((g) => (
       <optgroup key={g.label} label={g.label}>
-        {g.roles.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+        {g.roles.map((r) => <option key={r} value={r} disabled={tierOf(r) > max}>{ROLE_LABELS[r]}</option>)}
       </optgroup>
     ))}
   </>
@@ -36,6 +37,7 @@ export default function StaffClient({ viewerRole }: { viewerRole: Role }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const [pick, setPick] = useState(''); // 'area:ID' | 'school:ID' | 'arena:ID'
   const [err, setErr] = useState('');
+  const [msg, setMsg] = useState('');
   const [loading, setLoading] = useState(true);
   const [invOpen, setInvOpen] = useState(false);
   const [invEmail, setInvEmail] = useState('');
@@ -100,6 +102,18 @@ export default function StaffClient({ viewerRole }: { viewerRole: Role }) {
     setPick(''); load();
   };
 
+  // Tappad telefon: tar bort personens kodapp, så får hen slå på tvåfaktor igen
+  const resetMfa = async (p: Profile) => {
+    if (!window.confirm(`Nollställa tvåfaktor för ${p.full_name || p.email}? Personen får lägga till kodappen igen vid nästa inloggning.`)) return;
+    setErr(''); setMsg('');
+    const res = await fetch('/api/mfa-reset', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: p.id })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) setErr(data.error ?? 'Fel');
+    else setMsg(data.removed ? `Tvåfaktor nollställd för ${p.full_name || p.email}.` : `${p.full_name || p.email} hade ingen kodapp.`);
+  };
+
   const removeScope = async (scopeId: string) => {
     setErr('');
     const { error } = await supabase.from('staff_scope').delete().eq('id', scopeId);
@@ -133,6 +147,7 @@ export default function StaffClient({ viewerRole }: { viewerRole: Role }) {
       <input className="input" placeholder="Sök namn eller e-post…" value={q}
         onChange={(e) => setQ(e.target.value)} style={{ maxWidth: 340, marginBottom: 16 }} />
       {err && <div className="form-error" style={{ marginBottom: 12 }}>{err}</div>}
+      {msg && <div className="ok-msg" style={{ marginBottom: 12 }}>{msg}</div>}
 
       <div className="list">
         {visible.map((p) => {
@@ -148,7 +163,7 @@ export default function StaffClient({ viewerRole }: { viewerRole: Role }) {
                 {canEdit ? (
                   <select className="select" style={{ width: 'auto', padding: '6px 9px', fontSize: 12.5 }}
                     value={p.role} onChange={(e) => changeRole(p.id, e.target.value)}>
-                    <RoleOptions />
+                    <RoleOptions max={tierOf(viewerRole)} />
                   </select>
                 ) : (
                   <span className="badge b-low">{ROLE_LABELS[p.role]}</span>
@@ -170,6 +185,9 @@ export default function StaffClient({ viewerRole }: { viewerRole: Role }) {
                   <button className="btn btn-sm" onClick={() => { setOpenId(open ? null : p.id); setPick(''); }}>
                     {open ? tr('cancel') : tr('assign')}
                   </button>
+                )}
+                {canEdit && tierOf(p.role) <= tierOf(viewerRole) && (
+                  <button className="btn btn-sm" onClick={() => resetMfa(p)}>Nollställ tvåfaktor</button>
                 )}
               </div>
 
@@ -207,7 +225,7 @@ export default function StaffClient({ viewerRole }: { viewerRole: Role }) {
             <input className="input" type="email" value={invEmail} onChange={(e) => setInvEmail(e.target.value)} placeholder="namn@gothiacup.se" />
             <label className="label">{tr('roleLbl')}</label>
             <select className="select" value={invRole} onChange={(e) => setInvRole(e.target.value as Role)}>
-              <RoleOptions />
+              <RoleOptions max={tierOf(viewerRole)} />
             </select>
             <label className="label">{tr('scope')}</label>
             <select className="select" value={invPick} onChange={(e) => setInvPick(e.target.value)}>

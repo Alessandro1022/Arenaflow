@@ -75,7 +75,10 @@ delar (ordning, del, vad, fil, ok) as (
        and exists (select 1 from fn where proname = 'can_manage_channel')),
   (24, '23',  'Inbjudningar',         'tops_del23.sql',
        exists (select 1 from pg_proc where proname = 'protect_role_change'
-               and prosrc like '%auth.uid() is null%'))
+               and prosrc like '%auth.uid() is null%')),
+  (25, '24',  'Tvåfaktor',            'tops_del24.sql',
+       exists (select 1 from information_schema.columns where table_schema = 'public'
+               and table_name = 'tenants' and column_name = 'require_mfa'))
 ),
 -- Frågor mot tabeller som kanske saknas körs via query_to_xml, och bara
 -- när tabellen eller kolumnen finns. Annars hade hela filen kraschat.

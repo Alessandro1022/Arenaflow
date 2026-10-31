@@ -948,3 +948,13 @@ button.map-li:active { transform: scale(.985); }
 .imp-bar > div { height: 100%; background: var(--primary); transition: width .2s; }
 .imp-row .li-title { overflow-wrap: anywhere; }
 
+/* ---- Tvåfaktor ---- */
+.mfa-text { font-size: 14.5px; line-height: 1.5; margin: 6px 0 12px; }
+.mfa-step { font-weight: 700; margin: 16px 0 8px; }
+.mfa-hint { font-size: 13px; color: var(--muted); margin-top: 6px; }
+.mfa-more { margin-top: 10px; font-size: 13.5px; }
+.mfa-more summary { cursor: pointer; color: var(--muted); }
+.mfa-qr { display: block; width: 180px; height: 180px; margin: 10px 0; background: #fff; border-radius: 8px; }
+.mfa-secret { font-family: ui-monospace, Menlo, monospace; font-size: 15px; letter-spacing: .04em; margin: 8px 0; overflow-wrap: anywhere; }
+.mfa-code { font-size: 24px !important; letter-spacing: .3em; text-align: center; font-variant-numeric: tabular-nums; }
+.login-card a.btn { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; margin-top: 10px; text-decoration: none; }

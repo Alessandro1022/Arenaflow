@@ -4,7 +4,8 @@
 // och filtret i frågorna är ett andra lager om en policy skulle fallera.
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { tierOf, type Role } from '@/lib/types';
+import { type Role } from '@/lib/types';
+import { effectiveTier } from '@/lib/mfa';
 import { callGemini, gatherContext, generateReport, reportPrompt, type TenantInfo } from '@/lib/ai';
 
 export const maxDuration = 60;
@@ -16,7 +17,7 @@ export async function POST(req: Request) {
 
   const { data: profile } = await supabase
     .from('profiles').select('role, tenant_id').eq('id', user.id).single();
-  const tier = tierOf((profile?.role ?? 'volunteer') as Role);
+  const tier = await effectiveTier(supabase, profile?.role as Role);
 
   if (!profile?.tenant_id) {
     return NextResponse.json({ error: 'Ingen turnering kopplad till ditt konto' }, { status: 400 });
