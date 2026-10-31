@@ -1,69 +1,120 @@
 -- TournamentOps · Diagnos
 -- ============================================================================
--- Säker att köra i vilket läge som helst. Den läser bara systemkatalogen och
--- rör aldrig en kolumn som kanske inte finns, så den kan inte krascha av
--- samma skäl som den ska upptäcka.
+-- Visar vilka delar som är körda i databasen. Säker att köra när som helst:
+-- den läser bara systemkatalogen och ändrar ingenting. Den rör aldrig en
+-- tabell eller kolumn som kanske saknas, så den kraschar inte av det den
+-- ska upptäcka.
 --
--- Byt e-posten på sista raden i DO-blocket till din egen.
+-- Resultatet är en rad per del, och alla rader ska stå "ja".
+-- Står det NEJ: kör filen i kolumnen "fil" och sedan alla senare delar i
+-- nummerordning. Alla filer går att köra om utan skada.
+--
+-- Sist visas lagringen för bilagor, plattformsägare och aktiv turnering.
 -- ============================================================================
 
--- ---------- 1. Vilka delar är körda? ----------
-select
-  (select count(*) from information_schema.tables
-    where table_schema = 'public' and table_name = 'tenants')            as del6_tenants,
-  (select count(*) from information_schema.columns
-    where table_schema = 'public' and table_name = 'profiles'
-      and column_name = 'tenant_id')                                     as del7_tenant_id,
-  (select count(*) from information_schema.columns
-    where table_schema = 'public' and table_name = 'profiles'
-      and column_name = 'platform_owner')                                as del7_platform_owner,
-  (select count(*) from information_schema.routines
-    where routine_schema = 'public' and routine_name = 'my_tenant')      as del7_funktion,
-  (select count(*) from pg_policies
-    where schemaname = 'public' and policyname = 'tenant isolering')     as del7_isolering,
-  (select count(*) from information_schema.tables
-    where table_schema = 'public' and table_name = 'plans')              as del8_plans;
-
--- Tolkning:
---   del6_tenants        1 = del 6 körd
---   del7_tenant_id      1 = del 7 kom åtminstone till sektion 2
---   del7_platform_owner 1 = samma sak; 0 = del 7 är INTE körd
---   del7_funktion       1 = my_tenant() finns
---   del7_isolering     32 = alla isoleringspolicies på plats
---   del8_plans          1 = del 8 körd
-
--- ---------- 2. Ditt eget konto ----------
--- Körs bara om kolumnerna finns, därför dynamisk SQL.
-do $$
-declare
-  har_owner boolean;
-  har_tenant boolean;
-  rad record;
-  epost text := 'DIN@EPOST.SE';        -- << BYT HÄR
-begin
-  select count(*) = 1 into har_owner from information_schema.columns
-    where table_schema = 'public' and table_name = 'profiles' and column_name = 'platform_owner';
-  select count(*) = 1 into har_tenant from information_schema.columns
-    where table_schema = 'public' and table_name = 'profiles' and column_name = 'tenant_id';
-
-  if not har_owner then
-    raise notice '---';
-    raise notice 'Del 7 är INTE körd: kolumnen platform_owner saknas.';
-    raise notice 'Kör schema_part7_multitenant.sql, sedan make_me_owner.sql.';
-    raise notice '---';
-  end if;
-
-  for rad in execute format(
-    'select email, role::text as roll%s%s from public.profiles where lower(email) = lower(%L)',
-    case when har_owner  then ', platform_owner::text as agare' else ', ''(saknas)'' as agare' end,
-    case when har_tenant then ', coalesce(tenant_id::text, ''(ingen)'') as turnering' else ', ''(saknas)'' as turnering' end,
-    epost)
-  loop
-    raise notice 'Konto: % | roll: % | agare: % | turnering: %',
-      rad.email, rad.roll, rad.agare, rad.turnering;
-  end loop;
-
-  if not found then
-    raise notice 'Hittade ingen anvandare med e-post %. Kontrollera stavningen.', epost;
-  end if;
-end $$;
+with
+fn as (
+  select p.proname
+  from pg_proc p
+  join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'public'
+),
+delar (ordning, del, vad, fil, ok) as (
+  values
+  (1,  '1',   'Grund',                'schema.sql',
+       to_regclass('public.profiles') is not null
+       and to_regclass('public.staff_scope') is not null),
+  (2,  '2',   'Områdesdrift',         'schema_part2.sql',
+       to_regclass('public.classrooms') is not null),
+  (3,  '3',   'Chatt, nyheter, kris', 'schema_part3.sql',
+       to_regclass('public.crisis_state') is not null),
+  (4,  '4',   'AI och inbjudningar',  'schema_part4.sql',
+       to_regclass('public.invites') is not null),
+  (5,  'vyer', 'Prestandavyer',       'stats_views.sql',
+       to_regclass('public.school_stats') is not null),
+  (6,  '6',   'Turneringar',          'schema_part6_tenants.sql',
+       to_regclass('public.tenants') is not null),
+  (7,  '7',   'Multi-tenancy',        'schema_part7_multitenant.sql',
+       exists (select 1 from fn where proname = 'my_tenant')
+       and exists (select 1 from pg_policies
+                   where schemaname = 'public' and tablename = 'incidents'
+                     and policyname = 'tenant isolering')),
+  (8,  '8',   'Paket',                'schema_part8_plans.sql',
+       to_regclass('public.plans') is not null),
+  (9,  '9',   'Modulregler',          'tops_del9-12a.sql',
+       exists (select 1 from fn where proname = 'module_keys')),
+  (10, '10',  'Boenden och hotell',   'tops_del9-12a.sql',
+       to_regtype('public.accommodation_kind') is not null),
+  (11, '11',  'Spelare och ledare',   'tops_del9-12a.sql',
+       to_regclass('public.participants') is not null),
+  (12, '12a', 'Nya roller',           'tops_del9-12a.sql',
+       exists (select 1 from pg_enum e join pg_type t on t.oid = e.enumtypid
+               where t.typname = 'app_role' and e.enumlabel = 'security_staff')),
+  (13, '12b', 'Roller per modul',     'tops_del12b-15.sql',
+       to_regclass('public.role_modules') is not null),
+  (14, '13',  'Lager',                'tops_del12b-15.sql',
+       to_regclass('public.stock_items') is not null),
+  (15, '14',  'Transport',            'tops_del12b-15.sql',
+       to_regclass('public.vehicles') is not null),
+  (16, '15',  'Måltider',             'tops_del12b-15.sql',
+       to_regclass('public.meal_services') is not null),
+  (17, '16',  'Ekonomi',              'tops_del16_ekonomi.sql',
+       to_regclass('public.budget_lines') is not null),
+  (18, '17',  'Jour och nödinfo',     'tops_del17_jour.sql',
+       to_regclass('public.on_call_shifts') is not null),
+  (19, '18',  'Bemanning',            'tops_del18-21.sql',
+       to_regclass('public.absences') is not null),
+  (20, '19',  'Ärenden',              'tops_del18-21.sql',
+       to_regclass('public.task_comments') is not null),
+  (21, '20',  'Matcher',              'tops_del18-21.sql',
+       to_regclass('public.referees') is not null),
+  (22, '21',  'Chatt',                'tops_del18-21.sql',
+       to_regclass('public.channels') is not null),
+  (23, '22',  'Komplettering',        'tops_del22.sql',
+       to_regclass('public.channel_reads') is not null
+       and exists (select 1 from fn where proname = 'can_manage_channel'))
+),
+-- Frågor mot tabeller som kanske saknas körs via query_to_xml, och bara
+-- när tabellen eller kolumnen finns. Annars hade hela filen kraschat.
+extra as (
+  select
+    case when to_regclass('storage.buckets') is null then null
+      else (xpath('/row/n/text()', query_to_xml(
+        'select count(*) as n from storage.buckets where id = ''bilagor''',
+        false, true, '')))[1]::text
+    end as hinkar,
+    case when not exists (select 1 from information_schema.columns
+                          where table_schema = 'public' and table_name = 'profiles'
+                            and column_name = 'platform_owner') then null
+      else (xpath('/row/v/text()', query_to_xml(
+        'select string_agg(email, '', '' order by email) as v
+           from public.profiles where platform_owner',
+        true, true, '')))[1]::text
+    end as agare,
+    case when to_regclass('public.tenants') is null then null
+      else (xpath('/row/v/text()', query_to_xml(
+        'select string_agg(name, '', '' order by name) as v
+           from public.tenants where active',
+        true, true, '')))[1]::text
+    end as aktiv
+)
+select del, vad, status, fil
+from (
+  select ordning, del, vad,
+         case when ok then 'ja' else 'NEJ' end as status,
+         case when ok then '' else fil end     as fil
+  from delar
+  union all
+  select 30, 'lagring', 'Bilagor',
+         case when coalesce(hinkar, '0') <> '0' then 'ja' else 'NEJ' end,
+         case when coalesce(hinkar, '0') <> '0' then '' else 'tops_del22.sql' end
+  from extra
+  union all
+  select 31, 'konto', 'Plattformsägare', coalesce(agare, 'ingen'),
+         case when agare is null then 'make_me_owner.sql' else '' end
+  from extra
+  union all
+  select 32, 'konto', 'Aktiv turnering', coalesce(aktiv, 'ingen'), ''
+  from extra
+) rader
+order by ordning;
