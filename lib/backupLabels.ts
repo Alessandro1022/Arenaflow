@@ -11,7 +11,8 @@ export const TABLE_LABEL: Record<string, string> = {
   absences: 'frånvaro', availability: 'tillgänglighet', shift_swaps: 'passbyten', checklist_templates: 'checklistmallar',
   checklist_runs: 'checklistor', checklist_items: 'checklistpunkter', onboarding_items: 'introduktion',
   task_comments: 'uppgiftskommentarer', incident_comments: 'incidentkommentarer', crowd_counts: 'publikräkningar',
-  security_logs: 'säkerhetsloggar', security_cars: 'säkerhetsbilar', car_routes: 'bilrutter', attachments: 'bilagor'
+  security_logs: 'säkerhetsloggar', security_cars: 'säkerhetsbilar', car_routes: 'bilrutter', attachments: 'bilagor',
+  medical_points: 'sjukvårdsplatser'
 };
 
 export function describeRestore(r: Record<string, number>): string {

@@ -55,8 +55,9 @@ export default async function PrivacyPage() {
               <li><b>Personal och funktionärer:</b> namn, e-post, telefonnummer, roll, arbetspass, var man arbetar, meddelanden i appen och det man rapporterar, till exempel incidenter och felanmälningar.</li>
               <li><b>Lag:</b> lagnamn, förening, åldersklass, antal personer, boende samt lagledarens namn och telefonnummer.</li>
               <li><b>Deltagare:</b> namn, födelseår, lag, roll och tröjnummer. Hela födelsedatum och personnummer sparas aldrig.</li>
+              <li><b>Begäran om sjukvård:</b> var hjälpen behövs, hur bråttom det är och kort vad som hänt. Den syns bara för sjukvården, säkerhetsansvariga och turneringens ledning, och raderas efter {days('sjukvard', 30)} dagar.</li>
             </ul>
-            <p>Inga hälsouppgifter, allergier eller uppgifter om anhöriga sparas i systemet.</p>
+            <p>Utöver det sparas inga hälsouppgifter, allergier eller uppgifter om anhöriga i systemet.</p>
 
             <h2>Varför</h2>
             <p>För att turneringen ska gå säkert och smidigt: veta vilka som bor var, särskilt nattetid, och för måltider, transporter, matcher och kommunikation mellan funktionärer. Uppgifterna används inte för marknadsföring och säljs inte.</p>
@@ -76,7 +77,7 @@ export default async function PrivacyPage() {
             <p>Du har rätt att få veta vilka uppgifter som finns om dig (registerutdrag), att få fel rättade, att få uppgifter raderade och att invända mot behandlingen. Kontakta arrangören av {name}. Du kan också lämna klagomål till Integritetsskyddsmyndigheten (IMY).</p>
 
             <h2>In English</h2>
-            <p>{name} uses Work Cup to run the tournament. The organiser is the data controller; Aetos Systems processes data on the organiser&apos;s behalf. We store names and contact details of staff and team leaders, and for participants only name, year of birth, team, role and shirt number. No health data is stored. Data is deleted automatically after the tournament according to the periods above. Contact the organiser to access, correct or delete data.</p>
+            <p>{name} uses Work Cup to run the tournament. The organiser is the data controller; Aetos Systems processes data on the organiser&apos;s behalf. We store names and contact details of staff and team leaders, and for participants only name, year of birth, team, role and shirt number. Requests for medical help (place, urgency and a short note) are visible only to medical staff and security leads and are deleted after a short period. No other health data is stored. Data is deleted automatically after the tournament according to the periods above. Contact the organiser to access, correct or delete data.</p>
           </>
         )}
 

@@ -991,3 +991,31 @@ button.map-li:active { transform: scale(.985); }
 .backup-row a.btn { text-decoration: none; }
 .backup-confirm { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--bg); font-size: 14px; }
 
+/* ---- Sjukvård ---- */
+.btn-alarm { background: var(--danger); border-color: var(--danger); color: #fff; }
+.med-top { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.med-top a.btn { text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+.med-112 { font-size: 17px; font-weight: 800; }
+.med-alarm { width: 100%; justify-content: center; font-size: 17px; font-weight: 800; padding: 15px; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+.med-form { margin-bottom: 14px; }
+.med-h { font-size: 16px; margin: 6px 0 8px; }
+.med-req.akut { border-left: 4px solid var(--danger); }
+.med-req.snart { border-left: 4px solid #E59A2E; }
+.med-what { margin-top: 4px; font-size: 14px; overflow-wrap: anywhere; }
+.med-mine { flex-wrap: wrap; gap: 6px; }
+.med-mine span { min-width: 0; overflow-wrap: anywhere; }
+.med-kind {
+  display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; flex-shrink: 0;
+  background: #1565C0; color: #fff; font-weight: 900; font-size: 17px;
+}
+.med-kind.forsta_hjalpen { background: #2E7D32; }
+.med-kind.hjartstartare { background: #2E7D32; border-radius: 50%; font-size: 14px; }
+.list-item a.btn { text-decoration: none; }
+/* Kartans sjukvårdsmarkörer */
+.mk-med {
+  display: grid; place-items: center; width: 26px; height: 26px; border-radius: 7px; border: 2px solid #fff;
+  background: #1565C0; color: #fff; font-weight: 900; font-size: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.35);
+}
+.mk-med.forsta_hjalpen { background: #2E7D32; }
+.mk-med.hjartstartare { background: #2E7D32; border-radius: 50%; font-size: 13px; }
+

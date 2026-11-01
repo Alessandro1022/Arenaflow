@@ -16,7 +16,7 @@ export const KEEP_DAYS = 14;
 // Ordningen följer främmande nycklar: det som andra rader pekar på kommer först
 export const RESTORE_TABLES = [
   'areas',
-  'schools', 'arenas', 'dining_halls', 'referees', 'vehicles', 'stock_items', 'security_cars',
+  'medical_points', 'schools', 'arenas', 'dining_halls', 'referees', 'vehicles', 'stock_items', 'security_cars',
   'checklist_templates', 'onboarding_items', 'news_posts', 'documents', 'emergency_contacts',
   'budget_lines', 'tasks', 'incidents', 'on_call_shifts', 'shifts',
   'classrooms', 'night_rounds', 'room_keys', 'crowd_counts', 'security_logs', 'meal_services',

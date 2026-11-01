@@ -40,6 +40,7 @@ export type OfflineSnapshot = {
   shifts: { from: string; to: string; place: string; note: string; status: string }[];
   places: OfflinePlace[];
   news: { title: string; body: string; at: string }[];
+  medical?: { kind: string; name: string; address: string; phone: string; hours: string; lat: number | null; lng: number | null }[];
 };
 
 type Row = Record<string, unknown>;
@@ -87,7 +88,7 @@ export async function buildSnapshot(
   const nowIso = new Date(now).toISOString();
   const in3d = new Date(now + 3 * 86400e3).toISOString();
 
-  const [profile, scope, shifts, emergency, onCall, areas, crisis, news] = await Promise.all([
+  const [profile, scope, shifts, emergency, onCall, areas, crisis, news, medical] = await Promise.all([
     rows(supabase.from('profiles').select('id,full_name').eq('id', uid)),
     rows(supabase.from('staff_scope').select('area_id,location_type,location_id').eq('user_id', uid)),
     rows(supabase.from('shifts').select('starts_at,ends_at,role_note,location_type,location_id,status')
@@ -97,7 +98,8 @@ export async function buildSnapshot(
       .gte('ends_at', nowIso).lte('starts_at', in3d).order('starts_at').limit(200)),
     rows(supabase.from('areas').select('id,name')),
     rows(supabase.from('crisis_state').select('active,message').limit(1)),
-    rows(supabase.from('news_posts').select('*').order('created_at', { ascending: false }).limit(20))
+    rows(supabase.from('news_posts').select('*').order('created_at', { ascending: false }).limit(20)),
+    rows(supabase.from('medical_points').select('*').order('name').limit(200))
   ]);
 
   // Mina platser: allt för admin, annars mitt scope plus platserna för mina pass
@@ -211,7 +213,11 @@ export async function buildSnapshot(
     news: news
       .filter((n) => n.pinned === true || n.requires_ack === true)
       .slice(0, 5)
-      .map((n) => ({ title: str(n.title), body: str(n.body).slice(0, 1500), at: str(n.created_at) }))
+      .map((n) => ({ title: str(n.title), body: str(n.body).slice(0, 1500), at: str(n.created_at) })),
+    medical: medical.map((m) => ({
+      kind: str(m.kind), name: str(m.name), address: str(m.address), phone: str(m.phone),
+      hours: str(m.hours), lat: num(m.lat), lng: num(m.lng)
+    }))
   };
 }
 

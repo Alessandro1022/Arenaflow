@@ -67,6 +67,7 @@ export default function MapClient({ canEdit, focus }: { canEdit: boolean; focus:
   const layerRef = useRef<Leaflet.LayerGroup | null>(null);
   const markersRef = useRef(new Map<string, { m: Leaflet.Marker; sig: string }>());
   const meLayerRef = useRef<Leaflet.LayerGroup | null>(null);
+  const medLayerRef = useRef<Leaflet.LayerGroup | null>(null);
   const draftRef = useRef<Leaflet.Marker | null>(null);
   const watchRef = useRef<number | null>(null);
   const meCenteredRef = useRef(false);
@@ -94,6 +95,9 @@ export default function MapClient({ canEdit, focus }: { canEdit: boolean; focus:
   const [edit, setEdit] = useState<Edit | null>(null);
   const [bulk, setBulk] = useState<Bulk | null>(null);
   const [ios, setIos] = useState(false);
+  // Sjukvårdsstationer, första hjälpen och hjärtstartare (del 26)
+  const [med, setMed] = useState<Row[]>([]);
+  const [showMed, setShowMed] = useState(true);
 
   useEffect(() => { setIos(isIOS()); }, []);
 
@@ -118,6 +122,10 @@ export default function MapClient({ canEdit, focus }: { canEdit: boolean; focus:
       supabase.from('room_issues').select('school_id').neq('status', 'resolved'),
       supabase.from('areas').select('id,name')
     ]);
+
+    // Sjukvården finns kanske inte än (del 26) – då blir lagret bara tomt
+    const mp = await supabase.from('medical_points').select('*');
+    setMed(mp.error ? [] : ((mp.data ?? []) as Row[]).filter((m) => num(m.lat) !== null && num(m.lng) !== null));
 
     const firstErr = sc.error ?? ar.error;
     setLoadErr(firstErr ? `Kunde inte läsa platserna: ${firstErr.message}` : '');
@@ -304,6 +312,7 @@ export default function MapClient({ canEdit, focus }: { canEdit: boolean; focus:
         .addTo(map);
 
       layerRef.current = L.layerGroup().addTo(map);
+      medLayerRef.current = L.layerGroup().addTo(map);
       meLayerRef.current = L.layerGroup().addTo(map);
 
       const zoomClass = () => {
@@ -334,6 +343,7 @@ export default function MapClient({ canEdit, focus }: { canEdit: boolean; focus:
       map?.remove();
       mapRef.current = null;
       layerRef.current = null;
+      medLayerRef.current = null;
       meLayerRef.current = null;
       draftRef.current = null;
       markersRef.current.clear();
@@ -349,6 +359,31 @@ export default function MapClient({ canEdit, focus }: { canEdit: boolean; focus:
     stopBulkRef.current = true;
     clearTimeout(toastTimer.current);
   }, []);
+
+  // Sjukvårdslagret: egna markörer med en ruta som visar telefon och väg dit
+  useEffect(() => {
+    const L = LRef.current, layer = medLayerRef.current, map = mapRef.current;
+    if (!ready || !L || !layer || !map) return;
+    layer.clearLayers();
+    if (!showMed) { map.removeLayer(layer); return; }
+    if (!map.hasLayer(layer)) layer.addTo(map);
+    const label: Record<string, string> = { station: 'Sjukvårdsstation', forsta_hjalpen: 'Första hjälpen', hjartstartare: 'Hjärtstartare' };
+    for (const m of med) {
+      const kind = ['station', 'forsta_hjalpen', 'hjartstartare'].includes(str(m.kind)) ? str(m.kind) : 'station';
+      const lat = num(m.lat) as number, lng = num(m.lng) as number;
+      const icon = L.divIcon({
+        className: 'mk-wrap',
+        html: `<div class="mk-med ${kind}">${kind === 'hjartstartare' ? '♥' : '+'}</div>`,
+        iconSize: [26, 26], iconAnchor: [13, 13]
+      });
+      const tel = telHref(str(m.phone));
+      const html = `<b>${escapeHtml(str(m.name))}</b><br>${label[kind]}${str(m.hours) ? ` · ${escapeHtml(str(m.hours))}` : ''}`
+        + (str(m.address) ? `<br>${escapeHtml(str(m.address))}` : '')
+        + (tel ? `<br><a href="${tel}">${escapeHtml(str(m.phone))}</a>` : '')
+        + `<br><a href="${directionsHref(lat, lng, ios)}" target="_blank" rel="noopener noreferrer">Vägbeskrivning</a>`;
+      L.marker([lat, lng], { icon, title: str(m.name), zIndexOffset: 2000 }).bindPopup(html).addTo(layer);
+    }
+  }, [ready, med, showMed, ios]);
 
   // Markörerna: uppdatera bara det som ändrats, så att kartan inte blinkar
   // när en incident kommer in i realtid.
@@ -753,6 +788,11 @@ export default function MapClient({ canEdit, focus }: { canEdit: boolean; focus:
             {c.label} <span className="mono" style={{ marginLeft: 6, opacity: 0.7 }}>{c.n}</span>
           </button>
         ))}
+        {med.length > 0 && (
+          <button className={`chip ${showMed ? 'active' : ''}`} onClick={() => setShowMed(!showMed)} aria-pressed={showMed}>
+            Sjukvård <span className="mono" style={{ marginLeft: 6, opacity: 0.7 }}>{med.length}</span>
+          </button>
+        )}
       </div>
 
       {loadErr && <div className="form-error" style={{ marginBottom: 10 }}>{loadErr}</div>}

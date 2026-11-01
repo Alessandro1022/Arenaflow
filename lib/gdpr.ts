@@ -2,7 +2,7 @@
 // integritetssidan och morgonkörningen, så att det som visas är det som görs.
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-export type RetentionKey = 'deltagare' | 'lagkontakter' | 'chatt' | 'arenden' | 'pass' | 'ronder' | 'domare' | 'historik' | 'incidenter';
+export type RetentionKey = 'deltagare' | 'lagkontakter' | 'chatt' | 'arenden' | 'pass' | 'ronder' | 'domare' | 'historik' | 'incidenter' | 'sjukvard';
 
 export const RETENTION: { key: RetentionKey; label: string; what: string; days: number }[] = [
   { key: 'deltagare', label: 'Deltagare', what: 'spelare och ledare: namn, födelseår, lag och tröjnummer', days: 90 },
@@ -13,14 +13,15 @@ export const RETENTION: { key: RetentionKey; label: string; what: string; days: 
   { key: 'ronder', label: 'Ronder och loggar', what: 'nattronder, säkerhetslogg och publikräkning', days: 365 },
   { key: 'domare', label: 'Domarregistret', what: 'domarnas namn och kontaktuppgifter', days: 365 },
   { key: 'historik', label: 'Ändringshistorik', what: 'loggen över vem som ändrade vad', days: 365 },
-  { key: 'incidenter', label: 'Incidenter', what: 'incidentrapporter, kommentarer och bilder', days: 730 }
+  { key: 'incidenter', label: 'Incidenter', what: 'incidentrapporter, kommentarer och bilder', days: 730 },
+  { key: 'sjukvard', label: 'Begäran om sjukvård', what: 'plats, hur bråttom och kort vad som hänt', days: 30 }
 ];
 
 export const RESULT_LABEL: Record<string, string> = {
   deltagare: 'deltagare', lagkontakter: 'lagkontakter', chatt: 'chattmeddelanden', chatt_bilagor: 'bilder i chatten',
   uppgifter: 'uppgifter', arenden_bilagor: 'bilder på uppgifter', felanmalningar: 'felanmälningar',
   incidenter: 'incidenter', incidenter_bilagor: 'bilder på incidenter', pass: 'pass', nattronder: 'nattronder',
-  domare: 'domare', historik: 'rader i historiken'
+  domare: 'domare', historik: 'rader i historiken', sjukvard: 'begäran om sjukvård'
 };
 
 export function describeResult(r: Record<string, unknown> | null | undefined): string {

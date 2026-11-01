@@ -119,7 +119,8 @@ footer button { margin-top: 10px; background: none; border: 1px solid var(--line
     places: 'Mina platser', contact: 'Kontakt', address: 'Adress', assembly: 'Återsamling',
     care: 'Närmaste vård', note: 'Nödinfo', checkin: 'Incheckning', area: 'Område',
     teams: 'Lag', room: 'Rum', people: 'pers.', route: 'Vägbeskrivning', call: 'Ring',
-    news: 'Viktigt', saved: 'Sparad', savedBy: 'för', none: 'Ingen sparad information på den här telefonen ännu. Öppna appen en gång med täckning, så sparas det viktigaste automatiskt.',
+    news: 'Viktigt', saved: 'Sparad', savedBy: 'för', medical: 'Sjukvård och hjärtstartare',
+    mkind: { station: 'Sjukvårdsstation', forsta_hjalpen: 'Första hjälpen', hjartstartare: 'Hjärtstartare' }, none: 'Ingen sparad information på den här telefonen ännu. Öppna appen en gång med täckning, så sparas det viktigaste automatiskt.',
     expired: 'Den sparade informationen var äldre än sju dagar och har raderats. Öppna appen med täckning för att spara ny.',
     privacy: 'Informationen finns bara i den här telefonen. Den raderas när du loggar ut och efter sju dagar.',
     reset: 'Återställ appen', resetHint: 'Använd om appen beter sig konstigt. Kräver täckning.',
@@ -144,7 +145,8 @@ footer button { margin-top: 10px; background: none; border: 1px solid var(--line
     places: 'My locations', contact: 'Contact', address: 'Address', assembly: 'Assembly point',
     care: 'Nearest care', note: 'Emergency info', checkin: 'Check-in', area: 'Area',
     teams: 'Teams', room: 'Room', people: 'ppl', route: 'Directions', call: 'Call',
-    news: 'Important', saved: 'Saved', savedBy: 'for', none: 'No saved information on this phone yet. Open the app once with a connection and the essentials are saved automatically.',
+    news: 'Important', saved: 'Saved', savedBy: 'for', medical: 'Medical care and defibrillators',
+    mkind: { station: 'Medical station', forsta_hjalpen: 'First aid', hjartstartare: 'Defibrillator (AED)' }, none: 'No saved information on this phone yet. Open the app once with a connection and the essentials are saved automatically.',
     expired: 'The saved information was older than seven days and has been deleted. Open the app with a connection to save new.',
     privacy: 'This information is only stored on this phone. It is deleted when you log out and after seven days.',
     reset: 'Reset the app', resetHint: 'Use if the app behaves strangely. Needs a connection.',
@@ -337,6 +339,23 @@ footer button { margin-top: 10px; background: none; border: 1px solid var(--line
       }
     });
     add(content, so);
+
+    // Sjukvård och hjärtstartare: närmast först om telefonen redan vet var den är
+    if (snap.medical && snap.medical.length) {
+      var sm = section(L.medical);
+      snap.medical.forEach(function (m) {
+        var t = add(el('div', 't'), el('b', '', m.name),
+          el('div', 's', [L.mkind[m.kind] || m.kind, m.hours, m.address].filter(Boolean).join(' · ')));
+        var row = add(el('div', 'row'), t);
+        var acts = el('div', 'actions');
+        if (m.phone) add(acts, callBtn(m.phone));
+        var r = routeHref(m);
+        if (r) { var a = el('a', 'btn', L.route); a.href = r; a.target = '_blank'; a.rel = 'noopener noreferrer'; add(acts, a); }
+        if (acts.childNodes.length) add(row, acts);
+        add(sm, row);
+      });
+      add(content, sm);
+    }
 
     // Viktiga meddelanden
     if (snap.news && snap.news.length) {

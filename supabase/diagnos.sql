@@ -81,7 +81,9 @@ delar (ordning, del, vad, fil, ok) as (
                and table_name = 'tenants' and column_name = 'require_mfa')),
   (26, '25',  'GDPR',                 'tops_del25.sql',
        to_regclass('public.retention_runs') is not null
-       and exists (select 1 from fn where proname = 'person_export'))
+       and exists (select 1 from fn where proname = 'person_export')),
+  (27, '26',  'Sjukvård',             'tops_del26.sql',
+       to_regclass('public.medical_requests') is not null)
 ),
 -- Frågor mot tabeller som kanske saknas körs via query_to_xml, och bara
 -- när tabellen eller kolumnen finns. Annars hade hela filen kraschat.
