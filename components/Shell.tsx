@@ -14,6 +14,8 @@ import { useTenant } from '@/components/TenantProvider';
 import OnCallSheet from '@/components/OnCallSheet';
 import OfflineSync from '@/components/OfflineSync';
 import OfflineBar from '@/components/OfflineBar';
+import PushToggle from '@/components/PushToggle';
+import { flushPush } from '@/lib/pushClient';
 import { clearSnapshot } from '@/lib/offline/snapshot';
 import { forgetOffline, WARM_PAGES } from '@/lib/offline/client';
 import { clearOutbox, readOutbox } from '@/lib/offline/outbox';
@@ -73,6 +75,14 @@ export default function Shell({ role, name, userId, children }: Props) {
     return () => { supabase.removeChannel(ch); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Pushnotiser som väntar (t.ex. ändrade pass) skickas från ledningens
+  // telefoner varje minut. Har ingen appen öppen skickar morgonkörningen.
+  useEffect(() => {
+    if (tier < 4) return;
+    const t = setInterval(flushPush, 60000);
+    return () => clearInterval(t);
+  }, [tier]);
 
   // Olästa i chatten, så att man ser nya meddelanden utan att öppna chatten.
   // Räknas om vid sidbyte, när ett meddelande kommer och när chatten
@@ -271,6 +281,7 @@ export default function Shell({ role, name, userId, children }: Props) {
           <select className="lang-select" value={lang} onChange={(e) => setLang(e.target.value as Lang)}>
             {LANGS.map((l) => <option key={l} value={l}>{l.toUpperCase()}</option>)}
           </select>
+          <PushToggle />
           {/* Vanlig länk, inte Link: offlinesidan ligger utanför appen */}
           <a className="nav-link" href="/offline.html">
             <WifiOff size={17} /> Sparad info (offline)

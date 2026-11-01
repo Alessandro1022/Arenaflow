@@ -11,6 +11,7 @@ import { generateReport, type TenantInfo } from '@/lib/ai';
 import { supabaseUrl } from '@/lib/supabase/env';
 import { purgeTenant } from '@/lib/gdpr';
 import { afterPurge, createBackup, pruneBackups } from '@/lib/backup';
+import { flushPushes } from '@/lib/push';
 
 export const maxDuration = 300;
 
@@ -51,13 +52,17 @@ export async function GET(req: Request) {
     }
   }
 
+  // Pushnotiser som väntar, om ingen telefon har skickat dem
+  let push: unknown = null;
+  try { push = await flushPushes(db, new URL(req.url).origin); } catch (e) { push = e instanceof Error ? e.message : 'fel'; }
+
   // Bara turneringar som pågår – ingen vits att skriva rapport för en
   // turnering som ligger i malpåse till nästa år.
   const { data: tenants, error: tErr } = await db
     .from('tenants').select('id,name,sport,city,labels').eq('active', true);
 
   if (tErr) return NextResponse.json({ error: tErr.message }, { status: 500 });
-  if (!tenants?.length) return NextResponse.json({ slot, gallring, backuper, note: 'inga pågående turneringar' });
+  if (!tenants?.length) return NextResponse.json({ slot, gallring, backuper, push, note: 'inga pågående turneringar' });
 
   const out: Record<string, Record<string, string>> = {};
 
@@ -92,5 +97,5 @@ export async function GET(req: Request) {
     out[row.name] = results;
   }
 
-  return NextResponse.json({ slot, gallring, backuper, tenants: out });
+  return NextResponse.json({ slot, gallring, backuper, push, tenants: out });
 }

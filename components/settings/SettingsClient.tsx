@@ -9,6 +9,7 @@ import { useTenant } from '@/components/TenantProvider';
 import { tenant as fallback } from '@/lib/tenant';
 import GdprSettings from '@/components/settings/GdprSettings';
 import BackupSettings from '@/components/settings/BackupSettings';
+import PushSettings from '@/components/settings/PushSettings';
 
 export default function SettingsClient() {
   const { tr } = useLang();
@@ -90,6 +91,7 @@ export default function SettingsClient() {
 
       <GdprSettings />
       <BackupSettings />
+      <PushSettings />
     </>
   );
 }

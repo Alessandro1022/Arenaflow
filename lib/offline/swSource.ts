@@ -562,6 +562,37 @@ async function tile(event) {
   return res || hit;
 }
 
+// ---------- Pushnotiser ----------
+// iOS kräver att varje push visar en notis, så det görs alltid.
+self.addEventListener('push', (event) => {
+  let d = {};
+  try { d = event.data ? event.data.json() : {}; }
+  catch (e) { d = { body: event.data ? event.data.text() : '' }; }
+  stayAlive(event, 'push', self.registration.showNotification(d.title || 'Work Cup', {
+    body: d.body || '',
+    tag: d.tag || undefined,
+    data: { url: typeof d.url === 'string' && d.url.charAt(0) === '/' ? d.url : '/dashboard' },
+    icon: '/icon-192.png',
+    badge: '/icon-192.png'
+  }));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || '/dashboard';
+  stayAlive(event, 'notificationclick', (async () => {
+    const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const w of wins) {
+      try {
+        await w.focus();
+        if ('navigate' in w) await w.navigate(url);
+        return;
+      } catch (e) { /* prova nästa */ }
+    }
+    await self.clients.openWindow(url);
+  })());
+});
+
 // ---------- Vägvalet ----------
 self.addEventListener('fetch', (event) => {
   try {

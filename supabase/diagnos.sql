@@ -83,7 +83,9 @@ delar (ordning, del, vad, fil, ok) as (
        to_regclass('public.retention_runs') is not null
        and exists (select 1 from fn where proname = 'person_export')),
   (27, '26',  'Sjukvård',             'tops_del26.sql',
-       to_regclass('public.medical_requests') is not null)
+       to_regclass('public.medical_requests') is not null),
+  (28, '27',  'Pushnotiser',          'tops_del27.sql',
+       exists (select 1 from fn where proname = 'claim_pushes'))
 ),
 -- Frågor mot tabeller som kanske saknas körs via query_to_xml, och bara
 -- när tabellen eller kolumnen finns. Annars hade hela filen kraschat.

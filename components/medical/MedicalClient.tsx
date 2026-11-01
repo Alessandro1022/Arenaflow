@@ -9,6 +9,7 @@ import { directionsHref, distanceM, isIOS } from '@/lib/map';
 import { isOfflineError } from '@/lib/offline/outbox';
 import { readSnapshot } from '@/lib/offline/snapshot';
 import { netState } from '@/lib/offline/status';
+import { flushPush } from '@/lib/pushClient';
 
 type Urgency = 'akut' | 'snart' | 'ej_bradskande';
 type Status = 'ny' | 'pa_vag' | 'klar' | 'avbruten';
@@ -136,6 +137,7 @@ export default function MedicalClient({ userId, canHandle, canManage }: { userId
         : error.message);
       return;
     }
+    flushPush();
     setMsg('Skickat. Sjukvården ser din begäran nu. Ring 112 om det är livshotande.');
     setOpen(false); setWhat(''); setPlaceText(''); setPlace(''); setUsePos(false); setUrgency('akut');
     load();

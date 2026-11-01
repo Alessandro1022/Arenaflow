@@ -13,6 +13,7 @@ import {
   addToOutbox, dropFromOutbox, isOfflineError, newId, readOutbox, retryOutboxItem, OUTBOX_EVENT, type OutboxItem
 } from '@/lib/offline/outbox';
 import { netState } from '@/lib/offline/status';
+import { flushPush } from '@/lib/pushClient';
 import { useLang } from '@/components/LanguageProvider';
 import { tierOf, ROLE_LABELS, type Role } from '@/lib/types';
 import { useTenant } from '@/components/TenantProvider';
@@ -219,6 +220,7 @@ export default function ChatClient({ userId, role }: { userId: string; role: Rol
     }
     if (error) { setErr(error.message); return null; }
     setMsgs((prev) => (prev.some((x) => x.id === data.id) ? prev : [...prev, data as Msg]));
+    if (priority) flushPush();
     return data as Msg;
   };
 

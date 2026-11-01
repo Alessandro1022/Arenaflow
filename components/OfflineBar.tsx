@@ -15,6 +15,7 @@ import { createClient } from '@/lib/supabase/client';
 import { askWorker } from '@/lib/offline/client';
 import { netState, setNetState, useNetState } from '@/lib/offline/status';
 import { flushOutbox, pruneOutbox, readOutbox, OUTBOX_EVENT } from '@/lib/offline/outbox';
+import { flushPush } from '@/lib/pushClient';
 
 type NetReply = { down: boolean; savedAt: number | null; page: number | null };
 
@@ -56,7 +57,12 @@ export default function OfflineBar({ userId }: { userId: string }) {
       if (!readOutbox(userId).some((i) => !i.error)) return;
       const sent = await flushOutbox(supabase);
       count();
-      if (sent > 0) window.dispatchEvent(new Event('tops:outbox-sent'));
+      if (sent > 0) {
+        window.dispatchEvent(new Event('tops:outbox-sent'));
+        // Ett driftmeddelande eller en kritisk incident ur kön ska nå andras
+        // telefoner direkt, inte först vid nästa utskick
+        flushPush();
+      }
     };
     flushRef.current = flush;
     let soon: ReturnType<typeof setTimeout> | null = null;
@@ -133,8 +139,16 @@ export default function OfflineBar({ userId }: { userId: string }) {
     };
   }, []);
 
-  // Ny sida: det som saknades på den förra spelar ingen roll längre
-  useEffect(() => { if (netState().miss) setNetState({ miss: false }); }, [pathname]);
+  // Ny sida: det som saknades på den förra spelar ingen roll längre, och en
+  // sida som öppnats med täckning är redan färsk – då behövs inget "Uppdatera"
+  const firstPath = useRef(pathname);
+  useEffect(() => {
+    if (pathname === firstPath.current) return;
+    firstPath.current = pathname;
+    const cur = netState();
+    if (cur.miss) setNetState({ miss: false });
+    if (cur.back) setNetState({ back: false });
+  }, [pathname]);
 
   if (net.offline) {
     const what = net.miss

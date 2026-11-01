@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Siren } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { flushPush } from '@/lib/pushClient';
 import { useLang } from '@/components/LanguageProvider';
 import { useTenant } from '@/components/TenantProvider';
 
@@ -31,6 +32,7 @@ export default function CrisisClient({ userId }: { userId: string }) {
       activated_by: userId,
       activated_at: !active ? new Date().toISOString() : null
     }).eq('tenant_id', tenantId);
+    if (!active) flushPush();
     load();
   };
 
