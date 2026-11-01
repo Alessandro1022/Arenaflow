@@ -14,6 +14,7 @@ const SW_URL = '/offline-sw.js';
 export default function SwRegister({ enabled }: { enabled: boolean }) {
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return;
+    let timer: ReturnType<typeof setInterval> | null = null;
     let off = !enabled;
     try {
       const q = new URLSearchParams(window.location.search).get('sw');
@@ -40,10 +41,27 @@ export default function SwRegister({ enabled }: { enabled: boolean }) {
       if (off) return;
       // updateViaCache: 'none' – kontrollen av ny version går alltid mot
       // servern, så en rättad worker når telefonerna vid nästa sidladdning
-      await navigator.serviceWorker.register(SW_URL, { scope: '/', updateViaCache: 'none' });
+      const reg = await navigator.serviceWorker.register(SW_URL, { scope: '/', updateViaCache: 'none' });
+
+      // En ny version som väntar ska ta över direkt, inte först när alla
+      // flikar stängts. Den ber om det själv vid installationen, men Chrome
+      // glömmer det ibland – då puffar sidan på.
+      const nudge = () => {
+        const w = reg.waiting;
+        if (w && new URL(w.scriptURL).pathname === SW_URL) {
+          try { w.postMessage({ type: 'tops-skip' }); } catch { /* ignorera */ }
+        }
+      };
+      nudge();
+      reg.addEventListener('updatefound', () => {
+        const w = reg.installing;
+        w?.addEventListener('statechange', () => { if (w.state === 'installed') nudge(); });
+      });
+      timer = setInterval(nudge, 5000);
     })().catch(() => {
       /* utan worker fungerar appen precis som förut, bara utan offline */
     });
+    return () => { if (timer) clearInterval(timer); };
   }, [enabled]);
 
   return null;

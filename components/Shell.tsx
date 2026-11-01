@@ -13,14 +13,17 @@ import { useLang } from '@/components/LanguageProvider';
 import { useTenant } from '@/components/TenantProvider';
 import OnCallSheet from '@/components/OnCallSheet';
 import OfflineSync from '@/components/OfflineSync';
+import OfflineBar from '@/components/OfflineBar';
 import { clearSnapshot } from '@/lib/offline/snapshot';
+import { forgetOffline, WARM_PAGES } from '@/lib/offline/client';
+import { clearOutbox, readOutbox } from '@/lib/offline/outbox';
 import { FEATURE_KEYS, type FeatureKey } from '@/lib/features';
 import { tierOf, type Role, ROLE_LABELS } from '@/lib/types';
 import { LANGS, type Lang } from '@/lib/i18n';
 
-type Props = { role: Role; name: string; children: React.ReactNode };
+type Props = { role: Role; name: string; userId: string; children: React.ReactNode };
 
-export default function Shell({ role, name, children }: Props) {
+export default function Shell({ role, name, userId, children }: Props) {
   const { lang, setLang, tr } = useLang();
   const tn = useTenant();
   const pathname = usePathname();
@@ -170,6 +173,25 @@ export default function Shell({ role, name, children }: Props) {
     }
   ];
 
+  // Sidorna som sparas i förväg för användning utan täckning: bara de som
+  // personen faktiskt når i menyn
+  const reachable = new Set(nav.flatMap((g) => g.items.filter((i) => tier >= i.minTier && visible(i.href)).map((i) => i.href)));
+  const warmPaths = WARM_PAGES.filter((p) => reachable.has(p));
+
+  // Utloggning: det som väntar på att skickas försvinner, så fråga först.
+  // Offlinepaketet och allt sparat raderas, så nästa person på samma telefon
+  // inte ser det.
+  const onLogout = (e: React.FormEvent) => {
+    const waiting = readOutbox(userId).length;
+    if (waiting > 0 && !window.confirm(`${waiting} ${waiting === 1 ? 'sak har' : 'saker har'} inte skickats än och försvinner om du loggar ut. Logga ut ändå?`)) {
+      e.preventDefault();
+      return;
+    }
+    clearSnapshot();
+    clearOutbox();
+    forgetOffline();
+  };
+
   const closeDrawer = () => setOpen(false);
   const bottomItems = [
     { href: '/dashboard', label: tr('dashboard'), Icon: LayoutDashboard },
@@ -253,9 +275,7 @@ export default function Shell({ role, name, children }: Props) {
           <a className="nav-link" href="/offline.html">
             <WifiOff size={17} /> Sparad info (offline)
           </a>
-          {/* Offlinepaketet raderas vid utloggning, så nästa person på
-              samma telefon inte ser det */}
-          <form action="/auth/signout" method="post" onSubmit={() => clearSnapshot()}>
+          <form action="/auth/signout" method="post" onSubmit={onLogout}>
             <button className="nav-link" style={{ width: '100%', border: 'none', background: 'none' }}>
               <LogOut size={17} /> {tr('logout')}
             </button>
@@ -264,7 +284,8 @@ export default function Shell({ role, name, children }: Props) {
       </aside>
 
       <main className="main" style={crisis.active ? { paddingTop: 56 } : undefined}>
-        <OfflineSync tier={tier} roleLabel={ROLE_LABELS[role]} />
+        <OfflineBar userId={userId} />
+        <OfflineSync tier={tier} roleLabel={ROLE_LABELS[role]} warmPaths={warmPaths} />
         {children}
       </main>
 

@@ -46,7 +46,8 @@ export async function middleware(request: NextRequest) {
 }
 
 // Service workern och offlinesidan måste nås utan inloggning: en omdirigering
-// till /login gör att uppdateringen av workern misslyckas.
+// till /login gör att uppdateringen av workern misslyckas. Täckningskollen
+// (/api/ping) ska vara så lätt som möjligt och behöver ingen inloggning.
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|manifest.json|sw\\.js|offline-sw\\.js|offline\\.html|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)']
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|manifest.json|sw\\.js|offline-sw\\.js|offline\\.html|api/ping|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)']
 };

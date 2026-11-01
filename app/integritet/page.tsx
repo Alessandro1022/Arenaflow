@@ -73,11 +73,14 @@ export default async function PrivacyPage() {
               ))}
             </ul>
 
+            <h2>I funktionärernas telefoner</h2>
+            <p>För att appen ska fungera utan täckning sparar den det funktionären själv har sett i appen i den egna telefonen: sidor, scheman, platser, lag, meddelanden och incidenter. Begäran om sjukvård, deltagarnas uppgifter och ekonomi sparas aldrig i telefonen. Allt raderas när man loggar ut, när någon annan loggar in i samma telefon och senast efter sju dagar.</p>
+
             <h2>Dina rättigheter</h2>
             <p>Du har rätt att få veta vilka uppgifter som finns om dig (registerutdrag), att få fel rättade, att få uppgifter raderade och att invända mot behandlingen. Kontakta arrangören av {name}. Du kan också lämna klagomål till Integritetsskyddsmyndigheten (IMY).</p>
 
             <h2>In English</h2>
-            <p>{name} uses Work Cup to run the tournament. The organiser is the data controller; Aetos Systems processes data on the organiser&apos;s behalf. We store names and contact details of staff and team leaders, and for participants only name, year of birth, team, role and shirt number. Requests for medical help (place, urgency and a short note) are visible only to medical staff and security leads and are deleted after a short period. No other health data is stored. Data is deleted automatically after the tournament according to the periods above. Contact the organiser to access, correct or delete data.</p>
+            <p>{name} uses Work Cup to run the tournament. The organiser is the data controller; Aetos Systems processes data on the organiser&apos;s behalf. We store names and contact details of staff and team leaders, and for participants only name, year of birth, team, role and shirt number. Requests for medical help (place, urgency and a short note) are visible only to medical staff and security leads and are deleted after a short period. No other health data is stored. Data is deleted automatically after the tournament according to the periods above. So that the app works without coverage, staff phones keep what the staff member has seen in the app (never medical requests, participant data or finances); it is erased at logout, when someone else logs in on the same phone and after seven days at the latest. Contact the organiser to access, correct or delete data.</p>
           </>
         )}
 

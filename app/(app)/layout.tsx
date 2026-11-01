@@ -21,7 +21,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (await needsCode(supabase, user, role, profile?.tenant_id)) redirect('/tvafaktor');
 
   return (
-    <Shell role={role} name={profile?.full_name || user.email || ''}>
+    <Shell role={role} name={profile?.full_name || user.email || ''} userId={user.id}>
       {children}
     </Shell>
   );

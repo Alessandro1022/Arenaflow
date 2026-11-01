@@ -7,6 +7,8 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Phone, Siren, X, ShieldAlert, CalendarClock } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { readSnapshot } from '@/lib/offline/snapshot';
+import { netState } from '@/lib/offline/status';
 
 type OnCall = {
   function: string; contact_name: string | null; phone: string | null;
@@ -26,14 +28,38 @@ export default function OnCallSheet({ onClose, canEdit = false, showSchedule = t
   const [onCall, setOnCall] = useState<OnCall[]>([]);
   const [emergency, setEmergency] = useState<Emergency[]>([]);
   const [loading, setLoading] = useState(true);
+  const [savedAt, setSavedAt] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const [o, e] = await Promise.all([
       supabase.from('on_call_now').select('*'),
       supabase.from('emergency_contacts').select('*').order('sort_order')
     ]);
-    setOnCall((o.data ?? []) as OnCall[]);
-    setEmergency((e.data ?? []) as Emergency[]);
+    // Utan täckning räknas jouren fram ur offlinepaketet, som har passens
+    // tider. Ett sparat "jour just nu" kan ha hunnit bli fel.
+    const snap = readSnapshot();
+    if (snap && (netState().offline || o.error)) {
+      const now = Date.now();
+      const cur = new Map<string, OnCall>();
+      [...snap.onCall]
+        .filter((x) => Date.parse(x.from) <= now && now < Date.parse(x.to))
+        .sort((a, b) => Date.parse(b.from) - Date.parse(a.from))
+        .forEach((x) => {
+          if (!cur.has(x.fn)) {
+            cur.set(x.fn, { function: x.fn, contact_name: x.name, phone: x.phone, starts_at: x.from, ends_at: x.to, note: x.note });
+          }
+        });
+      setOnCall([...cur.values()]);
+      setSavedAt(snap.savedAt);
+    } else {
+      setOnCall((o.data ?? []) as OnCall[]);
+      setSavedAt(null);
+    }
+    if (snap && (e.error || (netState().offline && !(e.data ?? []).length))) {
+      setEmergency(snap.emergency.map((x, i) => ({ id: `s${i}`, label: x.label, phone: x.phone, kind: x.kind, note: x.note })));
+    } else {
+      setEmergency((e.data ?? []) as Emergency[]);
+    }
     setLoading(false);
   }, [supabase]);
 
@@ -53,6 +79,11 @@ export default function OnCallSheet({ onClose, canEdit = false, showSchedule = t
         </div>
 
         {loading && <div className="page-sub">Laddar…</div>}
+        {savedAt && (
+          <div className="li-meta" style={{ margin: '0 0 8px' }}>
+            Ingen täckning · enligt jourschemat som sparades {new Date(savedAt).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}
+          </div>
+        )}
 
         {!loading && onCall.length === 0 && (
           <div className="page-sub">

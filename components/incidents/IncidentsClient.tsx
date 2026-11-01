@@ -3,6 +3,9 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Plus } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import {
+  addToOutbox, dropFromOutbox, isOfflineError, newId, readOutbox, retryOutboxItem, OUTBOX_EVENT, type OutboxItem
+} from '@/lib/offline/outbox';
 import { useLang } from '@/components/LanguageProvider';
 import { useTenant } from '@/components/TenantProvider';
 
@@ -35,6 +38,10 @@ export default function IncidentsClient({ userId }: { userId: string }) {
   const [fSev, setFSev] = useState<Inc['severity']>('medium');
   const [fLoc, setFLoc] = useState('');
   const [saving, setSaving] = useState(false);
+  const [fErr, setFErr] = useState('');
+  const [notice, setNotice] = useState('');
+  // Rapporter skrivna utan täckning, som skickas när täckningen kommer tillbaka
+  const [pending, setPending] = useState<OutboxItem[]>([]);
 
   const load = useCallback(async () => {
     const { data } = await supabase
@@ -56,16 +63,49 @@ export default function IncidentsClient({ userId }: { userId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [load]);
 
-  const createIncident = async () => {
-    setSaving(true);
-    const [lt, lid] = fLoc ? fLoc.split(':') : [null, null];
-    await supabase.from('incidents').insert({
-      title: fTitle, description: fDesc || null, severity: fSev,
-      location_type: lt, location_id: lid, reported_by: userId
-    });
-    setSaving(false);
-    setShowModal(false);
+  useEffect(() => {
+    const read = () => setPending(readOutbox(userId).filter((i) => i.table === 'incidents'));
+    const sent = () => { read(); load(); };
+    read();
+    window.addEventListener(OUTBOX_EVENT, read);
+    window.addEventListener('tops:outbox-sent', sent);
+    return () => {
+      window.removeEventListener(OUTBOX_EVENT, read);
+      window.removeEventListener('tops:outbox-sent', sent);
+    };
+  }, [userId, load]);
+
+  const closeForm = () => {
+    setShowModal(false); setFErr('');
     setFTitle(''); setFDesc(''); setFSev('medium'); setFLoc('');
+  };
+
+  // Formuläret stängs bara när rapporten är sparad – i databasen, eller i
+  // telefonen för att skickas när täckningen kommer tillbaka. Annars ligger
+  // texten kvar, så att inget försvinner.
+  const createIncident = async () => {
+    if (!fTitle.trim()) { setFErr('Skriv vad som hänt.'); return; }
+    setSaving(true); setFErr(''); setNotice('');
+    const [lt, lid] = fLoc ? fLoc.split(':') : [null, null];
+    const row = {
+      title: fTitle.trim(), description: fDesc.trim() || null, severity: fSev,
+      location_type: lt, location_id: lid, reported_by: userId
+    };
+    const { error } = await supabase.from('incidents').insert(row);
+    setSaving(false);
+    if (error && isOfflineError(error)) {
+      // Klockslaget i texten: rapporten får sin tid när den kommer fram
+      const at = new Date().toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
+      const note = `(Skriven ${at} utan täckning.)`;
+      const queued = { ...row, description: row.description ? `${row.description}\n\n${note}` : note };
+      if (addToOutbox({ id: newId(), table: 'incidents', row: queued, userId })) {
+        closeForm();
+        setNotice('Ingen täckning. Rapporten är sparad i telefonen och skickas av sig själv när täckningen kommer tillbaka. Är det akut – ring.');
+        return;
+      }
+    }
+    if (error) { setFErr(error.message); return; }
+    closeForm();
     load();
   };
 
@@ -105,9 +145,30 @@ export default function IncidentsClient({ userId }: { userId: string }) {
         ))}
       </div>
 
+      {notice && <div className="ok-msg" style={{ marginBottom: 10 }}>{notice}</div>}
       {loading && <div className="page-sub">{tr('loading')}</div>}
       <div className="list">
-        {!loading && visible.length === 0 && <div className="page-sub">{tr('nothingHere')}</div>}
+        {pending.map((p) => (
+          <div key={p.id} className="list-item pending">
+            <div className="li-head">
+              <div>
+                <div className="li-title">{String(p.row.title ?? '')}</div>
+                {typeof p.row.description === 'string' && p.row.description && <div className="li-meta" style={{ whiteSpace: 'pre-line' }}>{p.row.description}</div>}
+                {p.error
+                  ? <div className="li-meta pending-err">Kunde inte skickas: {p.error}</div>
+                  : <div className="li-meta pending-wait">Väntar på täckning · skickas av sig själv</div>}
+              </div>
+              <span className={`badge b-${String(p.row.severity)}`}>{sevLabel(String(p.row.severity))}</span>
+            </div>
+            <div className="li-actions">
+              {p.error && <button className="btn btn-sm" onClick={() => retryOutboxItem(p.id)}>Försök igen</button>}
+              <button className="btn btn-sm" onClick={() => {
+                if (window.confirm('Ta bort rapporten? Den har inte skickats.')) dropFromOutbox(p.id);
+              }}>Ta bort</button>
+            </div>
+          </div>
+        ))}
+        {!loading && visible.length === 0 && pending.length === 0 && <div className="page-sub">{tr('nothingHere')}</div>}
         {visible.map((i) => (
           <div key={i.id} className="list-item">
             <div className="li-head">
@@ -166,6 +227,7 @@ export default function IncidentsClient({ userId }: { userId: string }) {
               </optgroup>
             </select>
 
+            {fErr && <div className="form-error" style={{ marginTop: 10 }}>{fErr}</div>}
             <div className="modal-actions">
               <button className="btn" onClick={() => setShowModal(false)}>{tr('cancel')}</button>
               <button className="btn btn-primary" disabled={!fTitle || saving} onClick={createIncident}>{tr('create')}</button>

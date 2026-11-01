@@ -45,6 +45,10 @@ type Hit = { lat: number; lng: number; label: string };
 const TILE_URL = process.env.NEXT_PUBLIC_MAP_TILE_URL || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 const TILE_ATTR = process.env.NEXT_PUBLIC_MAP_ATTRIBUTION ||
   '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>';
+// Kartbilder hämtade med CORS kan sparas i telefonen och visas utan täckning.
+// OpenStreetMap tillåter det; en annan leverantör måste slå på det själv med
+// NEXT_PUBLIC_MAP_TILE_CORS=1, annars syns inga kartbilder alls.
+const TILE_CORS = !process.env.NEXT_PUBLIC_MAP_TILE_URL || process.env.NEXT_PUBLIC_MAP_TILE_CORS === '1';
 const FALLBACK_CENTER: [number, number] = [57.7089, 11.9746]; // Göteborg
 const KINDS: AccKind[] = ['skola', 'hotell', 'vandrarhem', 'camping'];
 const SEVERITIES: Severity[] = ['low', 'medium', 'high', 'critical'];
@@ -306,10 +310,25 @@ export default function MapClient({ canEdit, focus }: { canEdit: boolean; focus:
       L.control.zoom({ position: 'topright', zoomInTitle: 'Zooma in', zoomOutTitle: 'Zooma ut' }).addTo(map);
 
       let tilesOk = 0, tilesBad = 0;
-      L.tileLayer(TILE_URL, { maxZoom: 19, attribution: TILE_ATTR })
-        .on('tileload', () => { tilesOk++; setTilesDown(false); })
-        .on('tileerror', () => { tilesBad++; if (tilesOk === 0 && tilesBad >= 4) setTilesDown(true); })
-        .addTo(map);
+      const addTiles = (cors: boolean) => {
+        const layer = L.tileLayer(TILE_URL, { maxZoom: 19, attribution: TILE_ATTR, ...(cors ? { crossOrigin: true } : {}) })
+          .on('tileload', () => { tilesOk++; setTilesDown(false); })
+          .on('tileerror', () => {
+            tilesBad++;
+            if (tilesOk > 0 || tilesBad < 4) return;
+            // Tillåter leverantören inte CORS syns inga bilder alls. Prova då
+            // utan, en gång – kartan fungerar, bara inte sparad offline.
+            if (cors && navigator.onLine && map) {
+              map.removeLayer(layer);
+              tilesBad = 0;
+              addTiles(false);
+              return;
+            }
+            setTilesDown(true);
+          })
+          .addTo(map!);
+      };
+      addTiles(TILE_CORS);
 
       layerRef.current = L.layerGroup().addTo(map);
       medLayerRef.current = L.layerGroup().addTo(map);

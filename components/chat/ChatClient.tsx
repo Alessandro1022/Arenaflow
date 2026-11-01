@@ -9,6 +9,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Send, Plus, AlertTriangle, ListPlus, Languages, X, Users, Paperclip } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import {
+  addToOutbox, dropFromOutbox, isOfflineError, newId, readOutbox, retryOutboxItem, OUTBOX_EVENT, type OutboxItem
+} from '@/lib/offline/outbox';
+import { netState } from '@/lib/offline/status';
 import { useLang } from '@/components/LanguageProvider';
 import { tierOf, ROLE_LABELS, type Role } from '@/lib/types';
 import { useTenant } from '@/components/TenantProvider';
@@ -63,6 +67,8 @@ export default function ChatClient({ userId, role }: { userId: string; role: Rol
   const [newCh, setNewCh] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  // Skrivet utan täckning: skickas av sig självt när täckningen kommer tillbaka
+  const [pending, setPending] = useState<OutboxItem[]>([]);
 
   // Ny kanal
   const [cName, setCName] = useState('');
@@ -186,13 +192,31 @@ export default function ChatClient({ userId, role }: { userId: string; role: Rol
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, load]);
 
-  // Till senaste meddelandet, även när en bild laddats klart och tagit plats
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs, atts]);
+  // Det som väntar i telefonen, och nya meddelanden när kön skickats
+  useEffect(() => {
+    const read = () => setPending(readOutbox(userId).filter((i) => i.table === 'messages'));
+    const sent = () => { read(); load(); };
+    read();
+    window.addEventListener(OUTBOX_EVENT, read);
+    window.addEventListener('tops:outbox-sent', sent);
+    return () => {
+      window.removeEventListener(OUTBOX_EVENT, read);
+      window.removeEventListener('tops:outbox-sent', sent);
+    };
+  }, [userId, load]);
+  const pendingHere = pending.filter((i) => i.row.channel_id === active);
 
-  const insertMessage = async (body: string) => {
-    const { data, error } = await supabase.from('messages')
-      .insert({ channel: 'kanal', channel_id: active, body, sender: userId, priority })
-      .select(MSG_FIELDS).single();
+  // Till senaste meddelandet, även när en bild laddats klart och tagit plats
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs, atts, pendingHere.length]);
+
+  // Utan täckning läggs meddelandet i kön och skickas senare. Bilder och filer
+  // kan inte vänta i telefonen, så de kräver täckning direkt.
+  const insertMessage = async (body: string, canWait = true): Promise<Msg | 'queued' | null> => {
+    const row = { channel: 'kanal', channel_id: active, body, sender: userId, priority };
+    const { data, error } = await supabase.from('messages').insert(row).select(MSG_FIELDS).single();
+    if (error && isOfflineError(error) && canWait) {
+      if (addToOutbox({ id: newId(), table: 'messages', row, userId })) return 'queued';
+    }
     if (error) { setErr(error.message); return null; }
     setMsgs((prev) => (prev.some((x) => x.id === data.id) ? prev : [...prev, data as Msg]));
     return data as Msg;
@@ -210,9 +234,14 @@ export default function ChatClient({ userId, role }: { userId: string; role: Rol
   // Bild eller fil i chatten: meddelandet först, sedan bilagan på det
   const sendFiles = async (list: FileList | null) => {
     if (!list || !list.length || !active || sending) return;
+    if (netState().offline) {
+      setErr('Bilder och filer kan inte skickas utan täckning. Försök igen när du har täckning.');
+      if (fileRef.current) fileRef.current.value = '';
+      return;
+    }
     setSending(true); setErr('');
-    const m = await insertMessage(text.trim() || (list.length > 1 ? `${list.length} bilagor` : 'Bild'));
-    if (m) {
+    const m = await insertMessage(text.trim() || (list.length > 1 ? `${list.length} bilagor` : 'Bild'), false);
+    if (m && m !== 'queued') {
       for (const file of Array.from(list)) {
         const e = await uploadAttachment(supabase, {
           tenantId: tn.active?.id ?? 'okand', parentType: 'message', parentId: m.id, userId, file
@@ -391,7 +420,25 @@ export default function ChatClient({ userId, role }: { userId: string; role: Rol
               </div>
             </div>
           ))}
-          {msgs.length === 0 && <div className="page-sub" style={{ marginBottom: 0 }}>{tr('nothingHere')}</div>}
+          {pendingHere.map((p) => (
+            <div key={p.id} className="chat-msg mine pending">
+              <div className="chat-bubble" style={p.row.priority ? { borderLeft: '3px solid var(--danger)', fontWeight: 600 } : undefined}>
+                {String(p.row.body ?? '')}
+              </div>
+              <div className="chat-meta">
+                {p.error ? (
+                  <>
+                    <span className="pending-err">Kunde inte skickas: {p.error}</span>{' '}
+                    <button className="btn btn-sm" style={{ padding: '1px 6px', fontSize: 11 }} onClick={() => retryOutboxItem(p.id)}>Försök igen</button>{' '}
+                  </>
+                ) : (
+                  <span className="pending-wait">Väntar på täckning · skickas av sig självt</span>
+                )}{' '}
+                <button className="btn btn-sm" style={{ padding: '1px 6px', fontSize: 11 }} onClick={() => dropFromOutbox(p.id)}>Ta bort</button>
+              </div>
+            </div>
+          ))}
+          {msgs.length === 0 && pendingHere.length === 0 && <div className="page-sub" style={{ marginBottom: 0 }}>{tr('nothingHere')}</div>}
           <div ref={endRef} />
         </div>
 

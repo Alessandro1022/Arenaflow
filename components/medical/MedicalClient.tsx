@@ -6,6 +6,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Siren, Phone, MapPin, Navigation, HeartPulse, Plus, Trash2, LocateFixed } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { directionsHref, distanceM, isIOS } from '@/lib/map';
+import { isOfflineError } from '@/lib/offline/outbox';
+import { readSnapshot } from '@/lib/offline/snapshot';
+import { netState } from '@/lib/offline/status';
 
 type Urgency = 'akut' | 'snart' | 'ej_bradskande';
 type Status = 'ny' | 'pa_vag' | 'klar' | 'avbruten';
@@ -35,6 +38,8 @@ export default function MedicalClient({ userId, canHandle, canManage }: { userId
   const [jour, setJour] = useState<{ contact_name: string | null; phone: string | null } | null>(null);
   const [me, setMe] = useState<{ lat: number; lng: number } | null>(null);
   const [missing, setMissing] = useState(false);
+  // Ärendena sparas aldrig i telefonen, så utan täckning syns de inte
+  const [reqsOffline, setReqsOffline] = useState(false);
   const [err, setErr] = useState('');
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
@@ -68,14 +73,26 @@ export default function MedicalClient({ userId, canHandle, canManage }: { userId
       supabase.from('on_call_now').select('contact_name,phone,function').eq('function', 'sjukvard').maybeSingle()
     ]);
     if (r.error && /does not exist|schema cache|Could not find/i.test(r.error.message)) { setMissing(true); return; }
+    const offline = isOfflineError(r.error);
+    setReqsOffline(offline);
     const list = (r.data ?? []) as Req[];
-    setReqs(list);
+    if (!offline) setReqs(list);
     setPoints((p.data ?? []) as Point[]);
     setPlaces([
       ...((s.data ?? []) as Place[]).map((x) => ({ ...x, type: 'school' as const, key: `school:${x.id}` })),
       ...((a.data ?? []) as Place[]).map((x) => ({ ...x, type: 'arena' as const, key: `arena:${x.id}` }))
     ]);
-    setJour((j.data as { contact_name: string | null; phone: string | null } | null) ?? null);
+    // Utan täckning: jouren ur offlinepaketet, som har passens tider
+    const snap = readSnapshot();
+    if (snap && (netState().offline || j.error)) {
+      const now = Date.now();
+      const cur = snap.onCall
+        .filter((x) => x.fn === 'sjukvard' && Date.parse(x.from) <= now && now < Date.parse(x.to))
+        .sort((a, b) => Date.parse(b.from) - Date.parse(a.from))[0];
+      setJour(cur ? { contact_name: cur.name, phone: cur.phone } : null);
+    } else {
+      setJour((j.data as { contact_name: string | null; phone: string | null } | null) ?? null);
+    }
     const ids = [...new Set(list.flatMap((x) => [x.requested_by, x.handled_by]).filter(Boolean))] as string[];
     if (ids.length) {
       const { data } = await supabase.from('profiles').select('id,full_name').in('id', ids);
@@ -111,7 +128,14 @@ export default function MedicalClient({ userId, canHandle, canManage }: { userId
       what: what.trim().slice(0, 300), requested_by: userId
     });
     setBusy(false);
-    if (error) { setErr(error.message); return; }
+    if (error) {
+      // Utan täckning går det inte att larma via appen – och det får inte
+      // ligga och vänta i telefonen. Ring i stället.
+      setErr(isOfflineError(error)
+        ? 'Ingen täckning – begäran kunde inte skickas. Ring sjukvårdsjouren eller 112 med knapparna ovan.'
+        : error.message);
+      return;
+    }
     setMsg('Skickat. Sjukvården ser din begäran nu. Ring 112 om det är livshotande.');
     setOpen(false); setWhat(''); setPlaceText(''); setPlace(''); setUsePos(false); setUrgency('akut');
     load();
@@ -230,9 +254,16 @@ export default function MedicalClient({ userId, canHandle, canManage }: { userId
 
       {canHandle && (
         <>
-          <h2 className="med-h">Pågående ({active.length})</h2>
+          <h2 className="med-h">Pågående{reqsOffline ? '' : ` (${active.length})`}</h2>
           <div className="list">
-            {active.length === 0 && <div className="page-sub">Inga öppna ärenden.</div>}
+            {reqsOffline && (
+              <div className="page-sub">
+                {active.length
+                  ? 'Ingen täckning. Listan är som när täckningen försvann och uppdateras när den är tillbaka.'
+                  : 'Ingen täckning. Ärendena sparas inte i telefonen och visas när täckningen är tillbaka.'}
+              </div>
+            )}
+            {!reqsOffline && active.length === 0 && <div className="page-sub">Inga öppna ärenden.</div>}
             {active.map((r) => {
               const pos = reqPos(r);
               return (
