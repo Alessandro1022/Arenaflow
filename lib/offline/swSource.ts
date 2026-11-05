@@ -35,7 +35,7 @@ export const OFFLINE_TABLES = [
   'checklist_templates', 'checklist_runs', 'checklist_items', 'checklist_due_today',
   // Platser, boenden och lag
   'schools', 'arenas', 'classrooms', 'room_issues', 'room_keys', 'team_assignments',
-  'school_stats', 'area_stats', 'team_roster_stats', 'medical_points', 'dining_halls',
+  'school_stats', 'area_stats', 'area_managers', 'team_roster_stats', 'medical_points', 'dining_halls',
   'crowd_counts', 'night_rounds', 'security_logs', 'security_cars', 'car_routes',
   // Matcher
   'arena_matches', 'referees', 'group_standings',

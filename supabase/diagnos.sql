@@ -85,7 +85,9 @@ delar (ordning, del, vad, fil, ok) as (
   (27, '26',  'Sjukvård',             'tops_del26.sql',
        to_regclass('public.medical_requests') is not null),
   (28, '27',  'Pushnotiser',          'tops_del27.sql',
-       exists (select 1 from fn where proname = 'claim_pushes'))
+       exists (select 1 from fn where proname = 'claim_pushes')),
+  (29, '28',  'Chattgrupper',         'tops_del28.sql',
+       exists (select 1 from fn where proname = 'can_post_channel'))
 ),
 -- Frågor mot tabeller som kanske saknas körs via query_to_xml, och bara
 -- när tabellen eller kolumnen finns. Annars hade hela filen kraschat.

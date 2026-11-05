@@ -1,6 +1,7 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { Phone } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useLang } from '@/components/LanguageProvider';
 import { useTenant } from '@/components/TenantProvider';
@@ -11,19 +12,34 @@ type AreaStat = {
   n_schools: number; n_arenas: number; teams_in: number;
   in_house: number; capacity: number; open_issues: number; open_incidents: number;
 };
+// Områdesansvariga (del 28): vem som har ansvar för området, med telefon
+type Manager = { area_id: string; user_id: string; full_name: string; phone: string; role: string };
+const tel = (p: string) => `tel:${p.replace(/[^\d+]/g, '')}`;
 
-export default function AreasClient() {
+export default function AreasClient({ canPickManagers = false }: { canPickManagers?: boolean }) {
   // Turneringens egna namn och etiketter, inte den statiska standarden
   const tenant = useTenant();
   const { tr } = useLang();
   const supabase = createClient();
   const [rows, setRows] = useState<AreaStat[]>([]);
+  // null = del 28 inte körd än, då visas inget om ansvariga
+  const [managers, setManagers] = useState<Record<string, Manager[]> | null>(null);
   const [loading, setLoading] = useState(true);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = useCallback(async () => {
-    const { data } = await supabase.from('area_stats').select('*').order('name');
-    setRows((data ?? []) as AreaStat[]);
+    // Statistiken och de områdesansvariga hämtas samtidigt
+    const [s, m] = await Promise.all([
+      supabase.from('area_stats').select('*').order('name'),
+      supabase.from('area_managers').select('area_id,user_id,full_name,phone,role').order('full_name')
+    ]);
+    setRows((s.data ?? []) as AreaStat[]);
+    if (m.error) setManagers(null);
+    else {
+      const by: Record<string, Manager[]> = {};
+      for (const x of (m.data ?? []) as Manager[]) (by[x.area_id] ??= []).push(x);
+      setManagers(by);
+    }
     setLoading(false);
   }, [supabase]);
 
@@ -67,6 +83,23 @@ export default function AreasClient() {
                 )}
               </div>
               {a.description && <div className="li-meta">{a.description}</div>}
+              {managers && (
+                <div className="area-managers">
+                  {(managers[a.id] ?? []).map((m) => (
+                    <div key={m.user_id} className="area-manager">
+                      <span><span className="li-meta" style={{ marginTop: 0 }}>Områdesansvarig</span> <b>{m.full_name || '—'}</b></span>
+                      {m.phone && (
+                        <a className="btn btn-sm" href={tel(m.phone)} aria-label={`Ring ${m.full_name}`}>
+                          <Phone size={14} /> Ring
+                        </a>
+                      )}
+                    </div>
+                  ))}
+                  {(managers[a.id] ?? []).length === 0 && (
+                    <div className="li-meta" style={{ marginTop: 0 }}>Ingen områdesansvarig vald än{canPickManagers ? ' – välj under Personal.' : '.'}</div>
+                  )}
+                </div>
+              )}
 
               <div className="stat-row"><span>{tenant.labels.schools}</span><b>{a.n_schools}</b></div>
               <div className="stat-row"><span>{tenant.labels.playingAreas}</span><b>{a.n_arenas}</b></div>

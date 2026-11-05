@@ -3,10 +3,11 @@
 // matcher och personal. Fyra steg på samma sida: välj vad, välj fil,
 // koppla kolumnerna, granska. Inget sparas förrän man trycker Importera.
 import { useMemo, useState } from 'react';
-import { Upload, FileDown, ClipboardPaste, Check, AlertTriangle, RotateCcw } from 'lucide-react';
+import { Upload, FileDown, ClipboardPaste, Check, AlertTriangle, RotateCcw, X, Table2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useTenant } from '@/components/TenantProvider';
-import { KINDS, kindOf, guessMapping, cellText, type KindKey } from '@/lib/import/kinds';
+import { KINDS, kindOf, guessMapping, cellText, type Field, type FieldType, type Kind, type KindKey } from '@/lib/import/kinds';
+import { buildXlsx, XLSX_MIME } from '@/lib/import/xlsxWrite';
 import { openXlsx, type Cell, type Workbook } from '@/lib/import/xlsx';
 import { decodeText, parseDelimited, toCsv } from '@/lib/import/csv';
 import { planImport, runImport, type Plan, type RowStatus, type RunResult } from '@/lib/import/plan';
@@ -14,6 +15,31 @@ import { planImport, runImport, type Plan, type RowStatus, type RunResult } from
 const STATUS_LABEL: Record<RowStatus, string> = { ny: 'Ny', ändras: 'Ändras', samma: 'Oförändrad', fel: 'Fel' };
 const STATUS_BADGE: Record<RowStatus, string> = { ny: 'b-resolved', ändras: 'b-medium', samma: 'b-low', fel: 'b-high' };
 const MAX_ROWS = 20000;
+
+// Mallens kolumner: alla fält utom alternativen till namn (t.ex. för- och
+// efternamn när det finns ett helt namn)
+const templateFields = (k: Kind) => k.fields.filter((f) => !(k.needOneOf && k.needOneOf.slice(1).flat().includes(f.key)));
+
+const TYPE_HINT: Record<FieldType, string> = {
+  text: 'Text', int: 'Heltal', num: 'Tal, t.ex. 57.7065', date: 'Datum, t.ex. 2027-01-02', time: 'Tid, t.ex. 14:30',
+  datetime: 'Datum och tid, t.ex. 2027-01-02 14:30', phone: 'Telefonnummer', email: 'E-postadress', enum: ''
+};
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+const ONE: Record<KindKey, string> = {
+  schools: 'boende', arenas: 'spelplats', teams: 'lag', participants: 'deltagare', matches: 'match', staff: 'person'
+};
+function formatOf(f: Field): string {
+  const base = f.type === 'enum' ? Object.keys(f.options ?? {}).map(cap).join(' / ') : TYPE_HINT[f.type];
+  return f.hint ? `${base}. ${f.hint}` : base;
+}
+
+function download(name: string, data: BlobPart, type: string) {
+  const url = URL.createObjectURL(new Blob([data], { type }));
+  const a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
 
 export default function ImportClient({ tier }: { tier: number }) {
   const supabase = useMemo(() => createClient(), []);
@@ -33,6 +59,7 @@ export default function ImportClient({ tier }: { tier: number }) {
   const [progress, setProgress] = useState<[number, number] | null>(null);
   const [result, setResult] = useState<RunResult | null>(null);
   const [err, setErr] = useState('');
+  const [showTemplate, setShowTemplate] = useState(false);
 
   const kind = kindKey ? kindOf(kindKey) : null;
 
@@ -52,7 +79,16 @@ export default function ImportClient({ tier }: { tier: number }) {
     return i < 0 ? 0 : i;
   }, [raw]);
   const headers = useMemo(() => (raw && headerIdx >= 0 ? (raw[headerIdx] ?? []).map((c) => cellText(c)) : []), [raw, headerIdx]);
-  const dataRows = useMemo(() => (raw ? raw.slice(headerIdx + 1) : []), [raw, headerIdx]);
+  // Exempelraden från mallen ska aldrig importeras om den lämnats kvar orörd
+  const exampleSig = useMemo(() => (kind ? templateFields(kind).map((f) => kind.example[f.key] ?? '').join('\u0001') : ''), [kind]);
+  const allRows = useMemo(() => (raw ? raw.slice(headerIdx + 1) : []), [raw, headerIdx]);
+  const dataRows = useMemo(() => {
+    if (!kind) return allRows;
+    const n = templateFields(kind).length;
+    // Tomma celler i slutet av raden finns inte i filen, så raden fylls ut först
+    return allRows.filter((r) => Array.from({ length: n }, (_, i) => cellText(r[i] ?? null)).join('\u0001') !== exampleSig);
+  }, [allRows, kind, exampleSig]);
+  const skippedExample = allRows.length - dataRows.length;
   const filled = useMemo(() => dataRows.filter((r) => r.some((c) => cellText(c))).length, [dataRows]);
   const sample = (idx: number) => {
     for (const r of dataRows) { const t = cellText(r[idx] ?? null); if (t) return t; }
@@ -106,15 +142,26 @@ export default function ImportClient({ tier }: { tier: number }) {
     setShowPaste(false);
   };
 
-  const template = () => {
+  // Mallen som Excel-fil: ett blad att fylla i och ett som förklarar kolumnerna.
+  // På iPhone öppnas den som en riktig tabell.
+  const templateXlsx = () => {
     if (!kind) return;
-    const fields = kind.fields.filter((f) => !(kind.needOneOf && kind.needOneOf.slice(1).flat().includes(f.key)));
-    const csv = toCsv([fields.map((f) => f.label), fields.map((f) => kind.example[f.key] ?? '')]);
-    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-    const a = document.createElement('a');
-    a.href = url; a.download = `mall-${kind.label.toLowerCase()}.csv`;
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    const fields = templateFields(kind);
+    const head = fields.map((f) => f.label);
+    const ex = fields.map((f) => kind.example[f.key] ?? '');
+    const help = [['Kolumn', 'Måste finnas', 'Format', 'Exempel'],
+      ...fields.map((f) => [f.label, f.required ? 'Ja' : '', formatOf(f), kind.example[f.key] ?? ''])];
+    const data = buildXlsx([
+      { name: kind.label, header: true, rows: [head, ex], widths: fields.map((f, i) => Math.max(f.label.length, ex[i].length) + 3) },
+      { name: 'Så fyller du i', header: true, rows: help, widths: [18, 13, 46, 28] }
+    ]);
+    download(`mall-${kind.label.toLowerCase()}.xlsx`, data, XLSX_MIME);
+  };
+  const templateCsv = () => {
+    if (!kind) return;
+    const fields = templateFields(kind);
+    download(`mall-${kind.label.toLowerCase()}.csv`,
+      toCsv([fields.map((f) => f.label), fields.map((f) => kind.example[f.key] ?? '')]), 'text/csv;charset=utf-8');
   };
 
   // Det som måste vara kopplat innan granskningen kan göras
@@ -184,7 +231,7 @@ export default function ImportClient({ tier }: { tier: number }) {
                 onChange={(e) => { onFile(e.target.files?.[0] ?? null); e.target.value = ''; }} hidden />
             </label>
             <button className="btn" onClick={() => setShowPaste(!showPaste)}><ClipboardPaste size={15} /> Klistra in</button>
-            <button className="btn" onClick={template}><FileDown size={15} /> Mall</button>
+            <button className="btn" onClick={() => setShowTemplate(true)}><Table2 size={15} /> Mall</button>
           </div>
           {showPaste && (
             <div style={{ marginTop: 10 }}>
@@ -196,6 +243,7 @@ export default function ImportClient({ tier }: { tier: number }) {
           {fileName && raw && (
             <div className="page-sub" style={{ margin: '10px 0 0' }}>
               <b>{fileName}</b> · {filled} rader · rubriker på rad {headerIdx + 1}
+              {skippedExample > 0 && ' · exempelraden från mallen hoppas över'}
             </div>
           )}
           {wb && wb.sheets.length > 1 && (
@@ -317,6 +365,42 @@ export default function ImportClient({ tier }: { tier: number }) {
           <div className="imp-actions" style={{ marginTop: 12 }}>
             <button className="btn" onClick={makePlan}><RotateCcw size={15} /> Granska igen</button>
             <button className="btn" onClick={() => { setKindKey(null); resetAfterKind(); }}>Ny import</button>
+          </div>
+        </div>
+      )}
+      {showTemplate && kind && (
+        <div className="modal-overlay" onClick={() => setShowTemplate(false)}>
+          <div className="modal tpl-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="row-between">
+              <h3 style={{ margin: 0 }}>Mall för {kind.label.toLowerCase()}</h3>
+              <button className="btn btn-sm" onClick={() => setShowTemplate(false)} aria-label="Stäng"><X size={14} /></button>
+            </div>
+            <div className="page-sub" style={{ margin: '6px 0 10px' }}>
+              En rad per {ONE[kind.key]} i filen, med rubrikerna överst. Kolumnerna behöver inte heta
+              exakt så här och kan stå i vilken ordning som helst – appen känner igen vanliga namn och du kopplar själv innan något sparas.
+            </div>
+            <div className="tpl-table-wrap">
+              <table className="tpl-table">
+                <thead><tr><th>Kolumn</th><th>Exempel</th><th>Format</th></tr></thead>
+                <tbody>
+                  {templateFields(kind).map((f) => (
+                    <tr key={f.key}>
+                      <td><b>{f.label}</b>{f.required && <span className="tpl-req"> måste finnas</span>}</td>
+                      <td>{kind.example[f.key] ?? ''}</td>
+                      <td className="tpl-fmt">{formatOf(f)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="imp-actions" style={{ marginTop: 12 }}>
+              <button className="btn btn-primary" onClick={templateXlsx}><FileDown size={15} /> Ladda ner Excel-mall</button>
+              <button className="btn" onClick={templateCsv}>CSV</button>
+            </div>
+            <div className="li-meta" style={{ marginTop: 8 }}>
+              Har du redan en lista i Excel behövs ingen mall: välj den direkt under Välj fil. Exempelraden i mallen
+              importeras inte om du lämnar den som den är.
+            </div>
           </div>
         </div>
       )}

@@ -6,8 +6,10 @@
 // Direktmeddelanden är aldrig öppna, oavsett behörighet: ledningen ska inte
 // kunna läsa personalens privata samtal för att de står högre i organisationen.
 // Platskanaler läses av den som har ansvar för platsen (del 22).
+// Grupper kan följa roller, även på en viss plats, och en kanal kan vara
+// sådan att bara ledningen skriver (del 28).
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Send, Plus, AlertTriangle, ListPlus, Languages, X, Users, Paperclip } from 'lucide-react';
+import { Send, Plus, AlertTriangle, ListPlus, Languages, X, Users, Paperclip, Megaphone, Sparkles } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import {
   addToOutbox, dropFromOutbox, isOfflineError, newId, readOutbox, retryOutboxItem, OUTBOX_EVENT, type OutboxItem
@@ -15,7 +17,7 @@ import {
 import { netState } from '@/lib/offline/status';
 import { flushPush } from '@/lib/pushClient';
 import { useLang } from '@/components/LanguageProvider';
-import { tierOf, ROLE_LABELS, type Role } from '@/lib/types';
+import { tierOf, ROLE_LABELS, ROLE_GROUPS, type Role } from '@/lib/types';
 import { useTenant } from '@/components/TenantProvider';
 import {
   AttachmentList, signAttachments, uploadAttachment, type Att
@@ -29,6 +31,8 @@ type Msg = {
 type Channel = {
   id: string; kind: string; name: string; is_open: boolean; min_tier: number;
   location_type: string | null; location_id: string | null;
+  // Från del 28. Saknas kolumnerna gäller det gamla: alla som läser får skriva.
+  roles?: string[]; post_min_tier?: number; created_by?: string | null;
 };
 type Person = { id: string; full_name: string; role: Role };
 type Place = { key: string; type: 'school' | 'arena'; id: string; name: string };
@@ -43,6 +47,32 @@ const TIER_OPTIONS = [
   { tier: 4, label: 'Ledningen' }
 ];
 const MSG_FIELDS = 'id,channel_id,body,sender,created_at,priority,task_id,translated_body,translated_to';
+const CH_FIELDS = 'id,kind,name,is_open,min_tier,location_type,location_id';
+const CH_FIELDS_28 = `${CH_FIELDS},roles,post_min_tier,created_by`;
+const LEADERS_WRITE = 4;
+
+// Vilka som är med, i klartext under kanalens namn
+function audience(c: Channel): string {
+  const roles = c.roles ?? [];
+  let who: string;
+  if (c.kind === 'direkt') who = 'Bara ni två';
+  else if (roles.length) {
+    who = roles.map((r) => ROLE_LABELS[r as Role] ?? r).join(', ') + (c.location_id ? ' med ansvar för platsen' : '');
+  } else if (c.kind === 'plats') who = 'Alla med ansvar för platsen';
+  else if (c.is_open) who = TIER_OPTIONS.find((o) => o.tier === c.min_tier)?.label ?? 'Alla i turneringen';
+  else who = 'Utvalda personer';
+  return (c.post_min_tier ?? 1) >= LEADERS_WRITE ? `${who} läser · bara ledningen skriver` : who;
+}
+
+// Ordningen i listan: info från ledningen först, sedan alla, grupper, platser och direkt
+function rank(c: Channel): number {
+  if ((c.post_min_tier ?? 1) >= LEADERS_WRITE && c.is_open) return 0;
+  if (c.kind === 'global') return 1;
+  if (c.kind === 'direkt') return 5;
+  if (c.kind === 'plats') return 4;
+  if ((c.roles ?? []).length) return 2;
+  return 3;
+}
 const PLACEHOLDER = /^(Bild|\d+ bilagor)$/;
 
 export default function ChatClient({ userId, role }: { userId: string; role: Role }) {
@@ -73,11 +103,16 @@ export default function ChatClient({ userId, role }: { userId: string; role: Rol
 
   // Ny kanal
   const [cName, setCName] = useState('');
-  const [cKind, setCKind] = useState<'grupp' | 'oppen' | 'plats'>('grupp');
+  const [cKind, setCKind] = useState<'roller' | 'plats' | 'grupp' | 'oppen'>('roller');
   const [cMembers, setCMembers] = useState<string[]>([]);
   const [cTier, setCTier] = useState(1);
   const [cPlace, setCPlace] = useState('');
   const [cSearch, setCSearch] = useState('');
+  const [cRoles, setCRoles] = useState<Role[]>([]);
+  const [cLeadersWrite, setCLeadersWrite] = useState(false);
+  // Finns del 28? Annars döljs det som kräver den.
+  const [has28, setHas28] = useState(true);
+  const [info, setInfo] = useState('');
 
   const loadUnread = useCallback(async () => {
     const { data } = await supabase.from('channel_unread').select('channel_id,unread').eq('user_id', userId);
@@ -86,11 +121,18 @@ export default function ChatClient({ userId, role }: { userId: string; role: Rol
   }, [supabase, userId]);
 
   const loadChannels = useCallback(async () => {
-    const [c, p] = await Promise.all([
-      supabase.from('channels').select('id,kind,name,is_open,min_tier,location_type,location_id').order('kind'),
+    const [c0, p] = await Promise.all([
+      supabase.from('channels').select(CH_FIELDS_28).order('kind'),
       supabase.from('profiles').select('id,full_name,role').order('full_name')
     ]);
-    const list = (c.data ?? []) as Channel[];
+    let c: { data: unknown; error: { message: string } | null } = c0;
+    // Del 28 inte körd än: läs som förut
+    if (c.error && /roles|post_min_tier|created_by|column/i.test(c.error.message)) {
+      setHas28(false);
+      c = await supabase.from('channels').select(CH_FIELDS).order('kind');
+    }
+    const list = ((c.data ?? []) as Channel[])
+      .slice().sort((a, b) => rank(a) - rank(b) || (a.name || '').localeCompare(b.name || '', 'sv'));
     setChannels(list);
     const ppl = (p.data ?? []) as Person[];
     setPeople(ppl.filter((x) => x.id !== userId));
@@ -315,18 +357,22 @@ export default function ChatClient({ userId, role }: { userId: string; role: Rol
   };
 
   const resetNewChannel = () => {
-    setNewCh(false); setCName(''); setCKind('grupp'); setCMembers([]); setCTier(1); setCPlace(''); setCSearch('');
+    setNewCh(false); setCName(''); setCKind(has28 ? 'roller' : 'grupp'); setCMembers([]); setCTier(1); setCPlace(''); setCSearch('');
+    setCRoles([]); setCLeadersWrite(false);
   };
 
   const createChannel = async () => {
-    setErr('');
-    const place = places.find((p) => p.key === cPlace);
-    const name = cName.trim() || place?.name || '';
+    setErr(''); setInfo('');
+    // Platsen gäller bara platskanaler, även om en plats valts innan man bytte typ
+    const place = cKind === 'plats' ? places.find((p) => p.key === cPlace) : undefined;
+    const roleNames = cRoles.map((r) => ROLE_LABELS[r]).join(' och ');
+    const name = cName.trim() || (place ? (cRoles.length ? `${place.name} · ${roleNames.toLowerCase()}` : place.name) : roleNames);
+    if (cKind === 'roller' && cRoles.length === 0) { setErr('Välj minst en roll.'); return; }
     if (!name) { setErr('Ge kanalen ett namn.'); return; }
     if (cKind === 'grupp' && cMembers.length === 0) { setErr('Välj minst en person.'); return; }
     if (cKind === 'plats' && !place) { setErr('Välj en plats.'); return; }
 
-    const { data, error } = await supabase.from('channels').insert({
+    const row: Record<string, unknown> = {
       name,
       kind: cKind === 'plats' ? 'plats' : 'grupp',
       is_open: cKind === 'oppen',
@@ -334,7 +380,12 @@ export default function ChatClient({ userId, role }: { userId: string; role: Rol
       location_type: place?.type ?? null,
       location_id: place?.id ?? null,
       created_by: userId
-    }).select('id').single();
+    };
+    if (has28) {
+      row.roles = cKind === 'roller' || cKind === 'plats' ? cRoles : [];
+      row.post_min_tier = cLeadersWrite ? LEADERS_WRITE : 1;
+    }
+    const { data, error } = await supabase.from('channels').insert(row).select('id').single();
     if (error) { setErr(error.message); return; }
 
     // Gruppkanal: utvalda medlemmar. Den som skapar är alltid med.
@@ -347,9 +398,22 @@ export default function ChatClient({ userId, role }: { userId: string; role: Rol
     setActive(data.id);
   };
 
+  // Standardgrupperna med en knapp: Info från ledningen, Säkerhet, Boende, Kök …
+  const createStandard = async () => {
+    setErr(''); setInfo('');
+    const { data, error } = await supabase.rpc('create_standard_channels');
+    if (error) { setErr(error.message); return; }
+    const n = Number(data) || 0;
+    setInfo(n ? `${n} nya grupper lades upp. Alla med rätt roll är med automatiskt.` : 'Standardgrupperna finns redan.');
+    await loadChannels();
+  };
+
   const fmt = (d: string) => new Date(d).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
   const current = channels.find((c) => c.id === active);
   const needle = cSearch.trim().toLowerCase();
+  // Bara ledningen skriver i vissa kanaler; den som skapat kanalen får alltid
+  const canPost = !current || current.created_by === userId || tier >= (current.post_min_tier ?? 1);
+  const toggleRole = (r: Role) => setCRoles((cur) => (cur.includes(r) ? cur.filter((x) => x !== r) : [...cur, r]));
 
   return (
     <>
@@ -358,9 +422,14 @@ export default function ChatClient({ userId, role }: { userId: string; role: Rol
           <h1 className="page-title">{tr('chat')}</h1>
           <div className="page-sub" style={{ marginBottom: 0 }}>{tn.name}</div>
         </div>
-        <div style={{ display: 'flex', gap: 6 }}>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          {tier >= 4 && has28 && (
+            <button className="btn btn-sm" onClick={createStandard} title="Info från ledningen, Ledning, Säkerhet, Boende, Kök och måltider, Planer, Sjukvård, Transport och lager">
+              <Sparkles size={14} /> Standardgrupper
+            </button>
+          )}
           {tier >= 4 && (
-            <button className="btn btn-sm" onClick={() => setNewCh(true)}>
+            <button className="btn btn-sm" onClick={() => { setCKind(has28 ? 'roller' : 'grupp'); setNewCh(true); }}>
               <Users size={14} /> Ny kanal
             </button>
           )}
@@ -377,13 +446,16 @@ export default function ChatClient({ userId, role }: { userId: string; role: Rol
             {(c.kind === 'direkt' && names[dmOther[c.id]]) || c.name || KIND_LABEL[c.kind]}
             {c.kind === 'direkt' && <span className="li-meta" style={{ marginTop: 0 }}>&nbsp;· direkt</span>}
             {c.kind === 'plats' && <span className="li-meta" style={{ marginTop: 0 }}>&nbsp;· plats</span>}
+            {(c.post_min_tier ?? 1) >= LEADERS_WRITE && <Megaphone size={12} style={{ marginLeft: 4 }} aria-label="bara ledningen skriver" />}
             {active !== c.id && (unread[c.id] ?? 0) > 0 && <span className="unread">{unread[c.id]}</span>}
           </button>
         ))}
         {channels.length === 0 && <div className="page-sub">Inga kanaler än.</div>}
       </div>
+      {current && <div className="chat-audience">{audience(current)}</div>}
 
       {err && <div className="form-error" style={{ marginBottom: 10 }}>{err}</div>}
+      {info && <div className="ok-msg" style={{ marginBottom: 10 }}>{info}</div>}
 
       <div className="chat-box">
         <div className="chat-msgs">
@@ -444,14 +516,17 @@ export default function ChatClient({ userId, role }: { userId: string; role: Rol
           <div ref={endRef} />
         </div>
 
-        {tier >= 4 && current && (
+        {tier >= 4 && current && canPost && (
           <label className="check-row" style={{ margin: '0 0 6px' }}>
             <input type="checkbox" checked={priority} onChange={() => setPriority(!priority)} />
             Prioriterat driftmeddelande
           </label>
         )}
 
-        <div className="chat-input">
+        {!canPost && (
+          <div className="chat-readonly"><Megaphone size={15} /> Här skriver bara ledningen – du ser allt som skrivs här.</div>
+        )}
+        {canPost && <div className="chat-input">
           <label className={`btn chat-attach ${sending || !active ? 'busy' : ''}`} aria-label="Bifoga bild eller fil">
             <Paperclip size={17} />
             <input ref={fileRef} type="file" accept="image/*,application/pdf" multiple hidden
@@ -471,7 +546,7 @@ export default function ChatClient({ userId, role }: { userId: string; role: Rol
           <button className="btn btn-primary" onClick={send} disabled={sending || !text.trim() || !active}>
             <Send size={16} /> <span className="send-label">{tr('send')}</span>
           </button>
-        </div>
+        </div>}
       </div>
 
       {newDm && (
@@ -506,15 +581,18 @@ export default function ChatClient({ userId, role }: { userId: string; role: Rol
               <button className="btn btn-sm" onClick={resetNewChannel} aria-label="Stäng"><X size={14} /></button>
             </div>
 
-            <div className="chips" style={{ margin: '4px 0 6px', padding: 0, flexWrap: 'wrap' }}>
-              <button className={`chip ${cKind === 'grupp' ? 'active' : ''}`} onClick={() => setCKind('grupp')}>Utvalda personer</button>
-              <button className={`chip ${cKind === 'oppen' ? 'active' : ''}`} onClick={() => setCKind('oppen')}>Öppen</button>
+            <label className="label">Vilka är med?</label>
+            <div className="chips" style={{ margin: '0 0 6px', padding: 0, flexWrap: 'wrap' }}>
+              {has28 && <button className={`chip ${cKind === 'roller' ? 'active' : ''}`} onClick={() => setCKind('roller')}>Roller</button>}
               <button className={`chip ${cKind === 'plats' ? 'active' : ''}`} onClick={() => setCKind('plats')}>Plats</button>
+              <button className={`chip ${cKind === 'grupp' ? 'active' : ''}`} onClick={() => setCKind('grupp')}>Utvalda personer</button>
+              <button className={`chip ${cKind === 'oppen' ? 'active' : ''}`} onClick={() => setCKind('oppen')}>Alla från en nivå</button>
             </div>
             <div className="li-meta" style={{ marginTop: 0 }}>
+              {cKind === 'roller' && 'Alla med rollerna du väljer, även de som läggs till senare. T.ex. Boendevärd för boendegruppen.'}
               {cKind === 'grupp' && 'Bara de du väljer kan läsa och skriva.'}
               {cKind === 'oppen' && 'Alla från vald nivå kan läsa och skriva.'}
-              {cKind === 'plats' && 'Alla som har ansvar för platsen eller dess område, även de som tillkommer senare.'}
+              {cKind === 'plats' && 'Alla som har ansvar för platsen eller dess område, även de som tillkommer senare. Välj roller om bara vissa ska vara med, t.ex. Boendevärd och Måltider där maten serveras på plats.'}
             </div>
 
             {cKind === 'plats' && (
@@ -532,9 +610,29 @@ export default function ChatClient({ userId, role }: { userId: string; role: Rol
               </>
             )}
 
+            {has28 && (cKind === 'roller' || cKind === 'plats') && (
+              <>
+                <label className="label">{cKind === 'plats' ? 'Bara de här rollerna (valfritt)' : 'Roller'}</label>
+                <div className="role-pick">
+                  {ROLE_GROUPS.map((g) => (
+                    <div key={g.label} className="role-pick-group">
+                      <div className="li-meta" style={{ marginTop: 0 }}>{g.label}</div>
+                      <div className="chips" style={{ margin: 0, padding: 0, flexWrap: 'wrap' }}>
+                        {g.roles.map((r) => (
+                          <button key={r} type="button" className={`chip ${cRoles.includes(r) ? 'active' : ''}`} onClick={() => toggleRole(r)}>
+                            {ROLE_LABELS[r]}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
             <label className="label">Namn</label>
             <input className="input" value={cName} onChange={(e) => setCName(e.target.value)}
-              placeholder={cKind === 'plats' ? 'Platsens namn om du lämnar tomt' : 't.ex. Säkerhetsgruppen'} />
+              placeholder={cKind === 'plats' ? 'Platsens namn om du lämnar tomt' : cKind === 'roller' ? 'Rollernas namn om du lämnar tomt' : 't.ex. Säkerhetsgruppen'} />
 
             {cKind === 'oppen' && (
               <>
@@ -560,6 +658,13 @@ export default function ChatClient({ userId, role }: { userId: string; role: Rol
                   ))}
                 </div>
               </>
+            )}
+
+            {has28 && (
+              <label className="check-row" style={{ marginTop: 12 }}>
+                <input type="checkbox" checked={cLeadersWrite} onChange={() => setCLeadersWrite(!cLeadersWrite)} />
+                Bara ledningen skriver (alla andra läser)
+              </label>
             )}
 
             <div className="modal-actions">
