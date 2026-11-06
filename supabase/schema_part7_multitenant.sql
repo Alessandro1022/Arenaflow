@@ -1,7 +1,7 @@
 -- TournamentOps · Del 7 · Riktig multi-tenancy
 -- ============================================================================
 -- Före denna fil delar alla turneringar samma data: aktiverar man innebandy
--- ser man Gothias skolor, incidenter och personal. Efter den är varje
+-- ser man ArenaFlows skolor, incidenter och personal. Efter den är varje
 -- turnering helt isolerad och flera kan pågå samtidigt.
 --
 -- Metod: varje tabell får tenant_id, och varje tabell får en RESTRIKTIV
@@ -13,7 +13,7 @@
 
 -- ============ 1. FLERA TURNERINGAR SAMTIDIGT ============
 -- Triggern tvingade fram exakt en aktiv turnering. Fel antagande:
--- Gothia Cup och Gothia Innebandy pågår parallellt, inte i tur och ordning.
+-- ArenaFlow och ArenaFlow Innebandy pågår parallellt, inte i tur och ordning.
 drop trigger if exists trg_single_active on public.tenants;
 
 -- updated_at ska fortfarande underhållas
@@ -33,7 +33,7 @@ alter table public.profiles
   add column if not exists tenant_id uuid references public.tenants(id) on delete restrict,
   add column if not exists platform_owner boolean not null default false;
 
--- Befintliga användare hör till Gothia Cup
+-- Befintliga användare hör till ArenaFlow
 update public.profiles
    set tenant_id = (select id from public.tenants where slug = 'gothia-cup')
  where tenant_id is null;
@@ -100,7 +100,7 @@ begin
     execute format(
       'alter table public.%I add column if not exists tenant_id uuid references public.tenants(id) on delete cascade', t);
 
-    -- All befintlig data tillhör Gothia Cup. Triggrar av under tiden.
+    -- All befintlig data tillhör ArenaFlow. Triggrar av under tiden.
     execute format('alter table public.%I disable trigger user', t);
     execute format('update public.%I set tenant_id = %L where tenant_id is null', t, gothia);
     execute format('alter table public.%I enable trigger user', t);
@@ -151,7 +151,7 @@ end $$;
 
 -- ============ 5b. PERSONALLISTAN ============
 -- profiles behöver isolering som alla andra tabeller, annars ser
--- innebandychefen Gothias samtliga funktionärer under Personal.
+-- innebandychefen ArenaFlows samtliga funktionärer under Personal.
 -- Undantag för den egna raden: utan det låses en användare vars tenant_id
 -- ännu inte hunnit sättas ute från hela appen, inklusive sin egen profil.
 create index if not exists idx_profiles_tenant on public.profiles (tenant_id);
@@ -163,7 +163,7 @@ create policy "tenant isolering" on public.profiles
   with check (tenant_id = public.my_tenant() or id = auth.uid());
 
 -- ============ 6. KRISLÄGE PER TURNERING ============
--- Var en singleton-rad (id = 1). Gothia i krisläge fick inte utlösa
+-- Var en singleton-rad (id = 1). ArenaFlow i krisläge fick inte utlösa
 -- krisbanner hos innebandy.
 alter table public.crisis_state
   add column if not exists tenant_id uuid references public.tenants(id) on delete cascade;
@@ -242,7 +242,7 @@ end $$;
 
 -- ============ 9. INBJUDNINGAR LANDAR I RÄTT TURNERING ============
 -- apply_invite satte roll och scope men inte turnering. En inbjuden av
--- innebandychefen hade hamnat i Gothia Cup.
+-- innebandychefen hade hamnat i ArenaFlow.
 create or replace function public.apply_invite() returns trigger
 language plpgsql security definer set search_path = public as $$
 declare inv record;

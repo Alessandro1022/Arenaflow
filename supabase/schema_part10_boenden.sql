@@ -1,14 +1,14 @@
 -- TournamentOps · Del 10 · Boenden, och en läcka i statistikvyerna
 -- ============================================================================
 -- KÖR DEN HÄR SÅ SNART DU KAN. Sektion 1 täpper till en riktig läcka:
--- innebandychefen kunde se Gothias samtliga boenden.
+-- innebandychefen kunde se ArenaFlows samtliga boenden.
 --
 -- Vyer i PostgreSQL körs som sin ÄGARE, inte som den som frågar, om inte
 -- security_invoker är påslaget. school_stats och area_stats ägs av postgres,
 -- så RLS på schools och areas gällde inte genom dem. Boenden-sidan läser
 -- just school_stats, alltså visade den allas boenden för alla.
 --
--- Verifierat: före fixen såg innebandychefen Gothias boenden genom vyn men
+-- Verifierat: före fixen såg innebandychefen ArenaFlows boenden genom vyn men
 -- inte genom tabellen. Efter fixen ser han noll genom båda.
 --
 -- Sektion 2 och framåt: hotell blir en boendetyp i stället för en egen

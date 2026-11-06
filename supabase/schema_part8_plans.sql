@@ -1,7 +1,7 @@
 -- TournamentOps · Del 8 · Paket och pris
 -- ============================================================================
 -- Plattformsägaren säljer moduler. Ett paket är en namngiven uppsättning
--- moduler med ett pris; Gothia kör det maxade.
+-- moduler med ett pris; ArenaFlow kör det maxade.
 --
 -- Viktigt designval: paketets moduler KOPIERAS in i tenants.features när
 -- paketet väljs. De läses inte live från plans. Annars skulle en ändring av
@@ -60,14 +60,14 @@ values
    "areas":true,"schools":true,"arenas":true,"map":true,"staff":true,"reports":true,
    "ai":false,"crisis":false,"history":false,"structure":false}'),
 
-('komplett', 'Komplett', 'Alla moduler, inklusive AI-rapporter, krisläge och historik. Paketet Gothia kör.', 149000, 3,
+('komplett', 'Komplett', 'Alla moduler, inklusive AI-rapporter, krisläge och historik. Paketet ArenaFlow kör.', 149000, 3,
  '{"incidents":true,"tasks":true,"shifts":true,"news":true,"chat":true,"docs":true,
    "areas":true,"schools":true,"arenas":true,"map":true,"staff":true,"reports":true,
    "ai":true,"crisis":true,"history":true,"structure":true}')
 on conflict (slug) do nothing;
 
 -- ============ SÄTT PAKET PÅ BEFINTLIGA TURNERINGAR ============
--- Gothia kör det maxade. Övriga får Standard tills du ändrar.
+-- ArenaFlow kör det maxade. Övriga får Standard tills du ändrar.
 do $$
 declare komplett uuid; standard uuid;
 begin

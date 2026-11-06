@@ -1,9 +1,9 @@
 // White-label: ALLT märkes-/sportspecifikt läses härifrån.
-// Byt event genom att ändra NEXT_PUBLIC_TENANT (GOTHIA | PARTILLE).
+// Byt event genom att ändra NEXT_PUBLIC_TENANT (ARENAFLOW | PARTILLE).
 // Eventnamn + primärfärg kan överstyras i runtime via event_settings (Inställningar).
 
 export type Sport = 'fotboll' | 'handboll';
-export type TenantKey = 'GOTHIA' | 'PARTILLE';
+export type TenantKey = 'ARENAFLOW' | 'PARTILLE';
 
 export type TenantConfig = {
   key: TenantKey;
@@ -30,8 +30,8 @@ export type TenantConfig = {
   };
 };
 
-export const GOTHIA: TenantConfig = {
-  key: 'GOTHIA',
+export const ARENAFLOW: TenantConfig = {
+  key: 'ARENAFLOW',
   event: { name: 'ArenaFlow', shortName: 'ArenaFlow', sport: 'fotboll', city: 'Göteborg', logoText: 'AF' },
   theme: {
     bg: '#F2F5F9', panel: '#FFFFFF', panel2: '#25618F', line: '#E2E8F1',
@@ -62,5 +62,5 @@ export const PARTILLE: TenantConfig = {
   }
 };
 
-const ACTIVE = (process.env.NEXT_PUBLIC_TENANT ?? 'GOTHIA') as TenantKey;
-export const tenant: TenantConfig = ACTIVE === 'PARTILLE' ? PARTILLE : GOTHIA;
+const ACTIVE = (process.env.NEXT_PUBLIC_TENANT ?? 'ARENAFLOW') as TenantKey;
+export const tenant: TenantConfig = ACTIVE === 'PARTILLE' ? PARTILLE : ARENAFLOW;

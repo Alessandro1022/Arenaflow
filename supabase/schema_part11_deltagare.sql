@@ -76,7 +76,7 @@ create policy "tenant isolering" on public.participants
   with check (tenant_id = public.my_tenant());
 
 -- ============ 3. ÅLDERSKLASSKONTROLL ============
--- Gothias klasser skrivs P15, F16, P17 och så vidare: bokstaven är kön,
+-- ArenaFlows klasser skrivs P15, F16, P17 och så vidare: bokstaven är kön,
 -- talet är den högsta åldern i klassen. En spelare i P15 under 2026 får
 -- alltså vara född 2011 eller senare.
 --

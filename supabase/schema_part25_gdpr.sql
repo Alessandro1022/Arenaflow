@@ -4,7 +4,7 @@
 -- får en sista dag och en lagringstid per sorts uppgift, räknat från den
 -- dagen. Varje morgon gallras det som har passerat sin tid, automatiskt.
 --
--- Standardtiderna nedan är förslag. Det är arrangören (Gothia) som är
+-- Standardtiderna nedan är förslag. Det är arrangören (ArenaFlow) som är
 -- personuppgiftsansvarig och bestämmer de riktiga tiderna – de ändras under
 -- Inställningar → Lagring och GDPR.
 --

@@ -1,7 +1,7 @@
 // Vad som går att importera, vilka kolumner som hör till vad, och hur ett
 // cellvärde blir ett värde i databasen.
 //
-// Rubrikerna i Gothias filer är okända i förväg. Varje fält har därför en
+// Rubrikerna i ArenaFlows filer är okända i förväg. Varje fält har därför en
 // lista med vanliga rubriker på svenska och engelska; den som importerar kan
 // alltid ändra kopplingen själv innan något sparas.
 import type { Cell } from './xlsx';

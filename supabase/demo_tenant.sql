@@ -9,7 +9,7 @@
 --     Här används i stället en bijektion mod 80*80: varje nummer ger ett
 --     unikt namnpar, utan upprepning upp till 6 400 personer.
 --  2. Turneringen. All data får tenant_id, så innebandy får egen personal,
---     egna boenden och egna matcher i stället för att dela Gothias.
+--     egna boenden och egna matcher i stället för att dela ArenaFlows.
 --
 -- STÄLL IN HÄR NERE vilken turnering och hur mycket data.
 -- ============================================================================

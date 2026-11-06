@@ -189,7 +189,7 @@ begin
   end loop;
 end $$;
 
--- Befintliga nyhetsinlägg tillhör Gothia Cup
+-- Befintliga nyhetsinlägg tillhör ArenaFlow
 update public.news_posts
    set tenant_id = (select id from public.tenants where slug = 'gothia-cup')
  where tenant_id is null;

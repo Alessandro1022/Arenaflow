@@ -5,8 +5,8 @@
 create table if not exists public.tenants (
   id uuid primary key default gen_random_uuid(),
   slug text not null unique,
-  name text not null,                     -- 'Gothia Cup'
-  short_name text not null default '',    -- 'Gothia'
+  name text not null,                     -- 'ArenaFlow'
+  short_name text not null default '',    -- 'ArenaFlow'
   sport text not null default 'fotboll',
   city text not null default '',
   logo_text text not null default '',     -- bokstäverna i brickan, t.ex. 'GC'
@@ -54,13 +54,13 @@ end $$;
 -- ============ STARTVÄRDEN ============
 insert into public.tenants (slug, name, short_name, sport, city, logo_text, colors, labels, features, active)
 values
-('gothia-cup', 'Gothia Cup', 'Gothia', 'fotboll', 'Göteborg', 'GC',
+('gothia-cup', 'ArenaFlow', 'ArenaFlow', 'fotboll', 'Göteborg', 'GC',
  '{"primary":"#1D6FA8","primaryDark":"#155A8C","panel2":"#25618F","accent":"#FFC845","bg":"#F2F5F9"}',
  '{"playingArea":"Plan","playingAreas":"Planer","matchStart":"Avspark","school":"Skola","schools":"Skolor","area":"Område","areas":"Områden"}',
  '{"incidents":true,"tasks":true,"shifts":true,"areas":true,"schools":true,"arenas":true,"map":true,"news":true,"chat":true,"docs":true,"reports":true,"ai":true,"crisis":true,"staff":true,"history":true,"structure":true}',
  true),
 
-('gothia-innebandy', 'Gothia Innebandy Cup', 'Gothia IBK', 'innebandy', 'Göteborg', 'GI',
+('gothia-innebandy', 'Demo Innebandy', 'Demo IBK', 'innebandy', 'Göteborg', 'GI',
  '{"primary":"#1D6FA8","primaryDark":"#155A8C","panel2":"#1B4F73","accent":"#FFC845","bg":"#F2F5F9"}',
  '{"playingArea":"Hall","playingAreas":"Hallar","matchStart":"Nedkast","school":"Skola","schools":"Skolor","area":"Område","areas":"Områden"}',
  '{"incidents":true,"tasks":true,"shifts":true,"areas":true,"schools":true,"arenas":true,"map":true,"news":true,"chat":true,"docs":true,"reports":true,"ai":true,"crisis":true,"staff":true,"history":true,"structure":true}',
