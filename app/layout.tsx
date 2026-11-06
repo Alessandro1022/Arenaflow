@@ -24,7 +24,7 @@ const STARTUP_IMAGES = [
 ];
 
 export const metadata: Metadata = {
-  title: `${tenant.event.name} · TournamentOps`,
+  title: `${tenant.event.name} · ArenaFlow`,
   description: 'Drift- och personalsystem',
   manifest: '/manifest.json',
   icons: {

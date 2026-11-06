@@ -1,6 +1,6 @@
 {
-  "name": "TournamentOps",
-  "short_name": "TournamentOps",
+  "name": "ArenaFlow",
+  "short_name": "ArenaFlow",
   "description": "Drift- och personalsystem för turneringar",
   "start_url": "/dashboard",
   "scope": "/",

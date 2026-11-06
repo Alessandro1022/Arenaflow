@@ -129,7 +129,7 @@ export default function TenantProvider({ children }: { children: React.ReactNode
         set('--accent', c.accent, bt.accent);
         set('--bg', c.bg, bt.bg);
 
-        if (active?.name) document.title = `${active.name} · TournamentOps`;
+        if (active?.name) document.title = `${active.name} · ArenaFlow`;
       } catch {
         // Tyst fallback – appen ska fungera utan tenants-tabellen
       }

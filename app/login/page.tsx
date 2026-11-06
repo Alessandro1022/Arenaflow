@@ -62,7 +62,7 @@ export default function LoginPage() {
   return (
     <div className="login-wrap">
       <div className="login-card">
-        <div className="login-eyebrow"><span className="pulse" />TOURNAMENTOPS · {tenant.event.city.toUpperCase()}</div>
+        <div className="login-eyebrow"><span className="pulse" />ARENAFLOW · {tenant.event.city.toUpperCase()}</div>
         <div className="brand" style={{ padding: 0, marginBottom: 18 }}>
           <div className="brand-badge">{tenant.event.logoText}</div>
           <div>

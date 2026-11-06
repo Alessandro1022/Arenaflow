@@ -239,7 +239,7 @@ export default function Shell({ role, name, userId, children }: Props) {
           <div className="brand-badge">{tn.logoText}</div>
           <div>
             <div className="brand-name">{brandName}</div>
-            <div className="brand-sub">TOURNAMENTOPS · {tn.sport.toUpperCase()}</div>
+            <div className="brand-sub">ARENAFLOW · {tn.sport.toUpperCase()}</div>
           </div>
         </div>
 
