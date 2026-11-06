@@ -32,7 +32,7 @@ export type TenantConfig = {
 
 export const GOTHIA: TenantConfig = {
   key: 'GOTHIA',
-  event: { name: 'Gothia Cup', shortName: 'Gothia', sport: 'fotboll', city: 'Göteborg', logoText: 'GC' },
+  event: { name: 'ArenaFlow', shortName: 'ArenaFlow', sport: 'fotboll', city: 'Göteborg', logoText: 'AF' },
   theme: {
     bg: '#F2F5F9', panel: '#FFFFFF', panel2: '#25618F', line: '#E2E8F1',
     ink: '#16283C', muted: '#5D7186',

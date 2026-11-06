@@ -158,9 +158,8 @@ export async function buildRoutes(db: SupabaseClient, slot: string, tenantId: st
 }
 
 // ---------- Rapporter ----------
-// Vilken turnering rapporten gäller. Promptet får ALDRIG hårdkoda Gothia Cup:
-// innebandychefens morgonrapport ska inte beskriva hans turnering som
-// världens största fotbollsturnering.
+// Vilken turnering rapporten gäller. Promptet får ALDRIG hårdkoda en turnerings
+// namn eller beskrivning: varje turnering ska beskrivas utifrån sina egna uppgifter.
 export type TenantInfo = {
   id: string;
   name: string;
@@ -173,11 +172,7 @@ function baseFor(t: TenantInfo) {
   const sport = t.sport || 'fotboll';
   const city = t.city ? ` i ${t.city}` : '';
   const planer = t.playingAreas || 'planer';
-  // Gothia Cup är faktiskt världens största ungdomsturnering – den
-  // beskrivningen hör hemma där och ingen annanstans.
-  const intro = t.name === 'Gothia Cup'
-    ? `Du är AI-driftassistenten för Gothia Cup – världens största internationella ungdomsturnering i fotboll, med tusentals lag, tiotusentals deltagare, matcher över hela Göteborg`
-    : `Du är AI-driftassistenten för ${t.name} – en ungdomsturnering i ${sport}${city}, med lag, deltagare och matcher fördelade över flera ${planer}`;
+  const intro = `Du är AI-driftassistenten för ${t.name} – en ungdomsturnering i ${sport}${city}, med lag, deltagare och matcher fördelade över flera ${planer}`;
 
   return `${intro} och ett helt driftteam (ledning, områdesansvariga, skolvärdar, planvärdar, matchdelegater och säkerhetsgrupp) som håller ihop allt.
 Skriv på svenska. Var konkret, kort och handlingsorienterad – punktlistor framför prosa. Hitta ALDRIG på data; använd endast lägesbilden nedan. Riskflaggor: grön = planvärd + domare räcker, gul = matchdelegat kopplas in, röd = säkerhetsgruppen kopplas in.`;
@@ -190,7 +185,7 @@ export function reportPrompt(
   routes?: unknown,
   tenant?: TenantInfo
 ) {
-  const BASE = baseFor(tenant ?? { id: '', name: 'Gothia Cup' });
+  const BASE = baseFor(tenant ?? { id: '', name: 'ArenaFlow' });
   const slotTxt = slot === 'morning' ? 'MORGONRAPPORT (inför dagen)' : slot === 'evening' ? 'KVÄLLSRAPPORT (summering av dagen och läget inför natten)' : 'LÄGESRAPPORT';
   const data = `\n\nLÄGESBILD (JSON):\n${JSON.stringify(ctx, null, 1)}`;
   if (kind === 'overview') {

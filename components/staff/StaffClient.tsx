@@ -253,7 +253,7 @@ export default function StaffClient({ viewerRole }: { viewerRole: Role }) {
             <h3>{tr('invite')}</h3>
             <div className="page-sub">Personen får ett mejl, sätter lösenord och landar med rätt roll + behörighet.</div>
             <label className="label">{tr('email')}</label>
-            <input className="input" type="email" value={invEmail} onChange={(e) => setInvEmail(e.target.value)} placeholder="namn@gothiacup.se" />
+            <input className="input" type="email" value={invEmail} onChange={(e) => setInvEmail(e.target.value)} placeholder="namn@exempel.se" />
             <label className="label">{tr('roleLbl')}</label>
             <select className="select" value={invRole} onChange={(e) => setInvRole(e.target.value as Role)}>
               <RoleOptions max={tierOf(viewerRole)} />
